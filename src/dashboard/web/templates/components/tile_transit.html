@@ -1,0 +1,13 @@
+<section class="tile" id="tile-transit" hx-get="/partials/transit" hx-trigger="every 5m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Transit</h2>
+    <button class="tile-action" type="button" data-open-modal="transit">Expand</button>
+  </header>
+  <div class="tile-body">
+    <ul class="placeholder-list">
+      <li>No departures loaded yet.</li>
+    </ul>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

@@ -1,0 +1,12 @@
+<section class="tile" id="tile-weather" hx-get="/partials/weather" hx-trigger="every 10m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Weather</h2>
+    <button class="tile-action" type="button" data-open-modal="weather">Expand</button>
+  </header>
+  <div class="tile-body">
+    <p class="metric">--</p>
+    <p class="empty-state">Current and daily forecast will appear here.</p>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

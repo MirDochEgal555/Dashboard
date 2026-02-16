@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell" data-right-rotation-seconds="{{ right_rotation_seconds }}">
+  <aside class="left-column">
+    <section class="tile tile-time">
+      <header class="tile-header">
+        <h2>Now</h2>
+      </header>
+      <div class="tile-body">
+        <div class="time-value" id="clock-value">{{ now_local.strftime("%H:%M:%S") }}</div>
+        <div class="date-value" id="clock-date">{{ now_local.strftime("%A, %b %d") }}</div>
+      </div>
+      <footer class="tile-footer">Generated {{ generated_at }}</footer>
+    </section>
+
+    {% include "components/tile_calendar.html" %}
+    {% include "components/tile_weather.html" %}
+
+    <section class="tile tile-status">
+      <header class="tile-header">
+        <h2>Status</h2>
+      </header>
+      <div class="tile-body">
+        <p class="empty-state">Step 1 scaffold complete: layout, templates, static assets.</p>
+      </div>
+      <footer class="tile-footer">Updated {{ generated_at }}</footer>
+    </section>
+  </aside>
+
+  <main class="right-column">
+    <section class="rotating-panel is-active" data-widget="transit">
+      {% include "components/tile_transit.html" %}
+    </section>
+    <section class="rotating-panel" data-widget="news">
+      {% include "components/tile_news.html" %}
+    </section>
+    <section class="rotating-panel" data-widget="finance">
+      {% include "components/tile_finance.html" %}
+    </section>
+    <section class="rotating-panel" data-widget="sports">
+      {% include "components/tile_sports.html" %}
+    </section>
+    <section class="rotating-panel" data-widget="photo">
+      {% include "components/tile_photo.html" %}
+    </section>
+    <section class="rotating-panel" data-widget="quote">
+      {% include "components/tile_quote.html" %}
+    </section>
+  </main>
+</div>
+<div id="modal-root"></div>
+{% endblock %}
+

@@ -1,0 +1,13 @@
+<section class="tile" id="tile-news" hx-get="/partials/news" hx-trigger="every 15m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>News</h2>
+    <button class="tile-action" type="button" data-open-modal="news">Expand</button>
+  </header>
+  <div class="tile-body">
+    <ul class="placeholder-list">
+      <li>No headlines loaded yet.</li>
+    </ul>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

@@ -1,0 +1,13 @@
+<section class="tile" id="tile-calendar" hx-get="/partials/calendar" hx-trigger="every 10m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Today's Calendar</h2>
+    <button class="tile-action" type="button" data-open-modal="calendar">Expand</button>
+  </header>
+  <div class="tile-body">
+    <ul class="placeholder-list">
+      <li>No events loaded yet.</li>
+    </ul>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

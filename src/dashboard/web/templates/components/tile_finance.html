@@ -1,0 +1,13 @@
+<section class="tile" id="tile-finance" hx-get="/partials/finance" hx-trigger="every 10m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Finance</h2>
+    <button class="tile-action" type="button" data-open-modal="finance">Expand</button>
+  </header>
+  <div class="tile-body">
+    <ul class="placeholder-list">
+      <li>No market data loaded yet.</li>
+    </ul>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

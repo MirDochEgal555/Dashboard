@@ -1,0 +1,10 @@
+ui:
+  title: "My Dashboard"
+  layout:
+    left_column_width: "30%"
+    right_rotation_seconds: 60
+  photo_rotation_seconds: 120
+refresh:
+  interval_minutes: 10
+  jitter_seconds: 15
+

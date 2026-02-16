@@ -1,0 +1,11 @@
+<section class="tile" id="tile-photo" hx-get="/partials/photo" hx-trigger="every 60m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Photos</h2>
+    <button class="tile-action" type="button" data-open-modal="photo">Expand</button>
+  </header>
+  <div class="tile-body">
+    <div class="photo-placeholder">Photo preview area</div>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+

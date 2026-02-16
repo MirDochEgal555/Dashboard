@@ -1,0 +1,11 @@
+<section class="tile" id="tile-quote" hx-get="/partials/quote" hx-trigger="every 60m" hx-swap="outerHTML">
+  <header class="tile-header">
+    <h2>Quote / On This Day</h2>
+    <button class="tile-action" type="button" data-open-modal="quote">Expand</button>
+  </header>
+  <div class="tile-body">
+    <blockquote class="quote-placeholder">"No quote loaded yet."</blockquote>
+  </div>
+  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+</section>
+
