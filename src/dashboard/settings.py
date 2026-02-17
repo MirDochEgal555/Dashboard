@@ -50,11 +50,36 @@ class RefreshSettings(BaseModel):
     jitter_seconds: int = Field(default=15, ge=0, le=300)
 
 
+class LocationSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    mode: Literal["auto", "fixed"] = "auto"
+    fallback_city: str = "Stuttgart, DE"
+
+    @field_validator("fallback_city")
+    @classmethod
+    def validate_fallback_city(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("location.fallback_city must not be empty")
+        return text
+
+
+class WeatherSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["open_meteo"] = "open_meteo"
+    units: Literal["metric", "imperial"] = "metric"
+    show_daily_days: int = Field(default=5, ge=1, le=10)
+
+
 class DashboardYamlSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     ui: UiSettings = Field(default_factory=UiSettings)
     refresh: RefreshSettings = Field(default_factory=RefreshSettings)
+    location: LocationSettings = Field(default_factory=LocationSettings)
+    weather: WeatherSettings = Field(default_factory=WeatherSettings)
 
 
 class EnvSettings(BaseSettings):

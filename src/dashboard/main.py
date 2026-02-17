@@ -11,7 +11,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .scheduler import DUMMY_REFRESH_CACHE_KEY, build_scheduler, run_dummy_refresh_job
+from .scheduler import (
+    DUMMY_REFRESH_CACHE_KEY,
+    WEATHER_REFRESH_CACHE_KEY,
+    build_scheduler,
+    run_dummy_refresh_job,
+    run_weather_refresh_job,
+)
 from .settings import AppSettings, load_settings
 from .storage.cache import get_cache_entry, get_cache_payload
 from .storage.db import initialize_database
@@ -47,7 +53,7 @@ COMPONENT_TEMPLATES = {
 
 WIDGET_CACHE_KEYS = {
     "calendar": "calendar.today",
-    "weather": "weather.snapshot",
+    "weather": WEATHER_REFRESH_CACHE_KEY,
     "transit": "transit.departures",
     "news": "news.headlines",
     "finance": "finance.quotes",
@@ -80,6 +86,195 @@ def _format_local_refresh(timestamp_utc: str | None, settings: AppSettings) -> s
     return local_dt.strftime("%H:%M:%S")
 
 
+def _to_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_day_label(raw_date: Any) -> str:
+    if not isinstance(raw_date, str):
+        return "--"
+    try:
+        return datetime.fromisoformat(raw_date).strftime("%a")
+    except ValueError:
+        return raw_date
+
+
+def _format_day_label_long(raw_date: Any) -> str:
+    if not isinstance(raw_date, str):
+        return "--"
+    try:
+        return datetime.fromisoformat(raw_date).strftime("%a, %b %d")
+    except ValueError:
+        return raw_date
+
+
+def _build_weather_tile_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "weather_available": False,
+        "weather_temp_display": None,
+        "weather_unit_symbol": "C",
+        "weather_condition": None,
+        "weather_location_label": None,
+        "weather_daily": [],
+        "weather_updated_at": None,
+        "weather_is_stale": True,
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    snapshot = payload.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return context
+
+    units = payload.get("units")
+    if units == "imperial":
+        context["weather_unit_symbol"] = "F"
+
+    context["weather_is_stale"] = cache_entry.is_stale()
+
+    location_label = payload.get("location_label")
+    if isinstance(location_label, str) and location_label.strip():
+        context["weather_location_label"] = location_label.strip()
+
+    refreshed_at = payload.get("refreshed_at_utc")
+    snapshot_updated = snapshot.get("updated_at")
+    context["weather_updated_at"] = (
+        _format_local_refresh(refreshed_at, settings)
+        or _format_local_refresh(snapshot_updated, settings)
+    )
+
+    temp = _to_float(snapshot.get("temp"))
+    if temp is not None:
+        context["weather_temp_display"] = f"{temp:.1f}"
+        context["weather_available"] = True
+
+    condition = snapshot.get("condition")
+    if isinstance(condition, str) and condition.strip():
+        context["weather_condition"] = condition.strip()
+
+    daily_data = snapshot.get("daily")
+    if isinstance(daily_data, list):
+        daily_rows: list[dict[str, Any]] = []
+        for item in daily_data[: settings.yaml.weather.show_daily_days]:
+            if not isinstance(item, dict):
+                continue
+            min_temp = _to_float(item.get("min_temp"))
+            max_temp = _to_float(item.get("max_temp"))
+            if min_temp is None or max_temp is None:
+                continue
+            condition = item.get("condition")
+            precip_prob = _to_int(item.get("precip_prob"))
+            daily_rows.append(
+                {
+                    "day_label": _format_day_label(item.get("date")),
+                    "max_temp_display": f"{max_temp:.0f}",
+                    "min_temp_display": f"{min_temp:.0f}",
+                    "condition": condition if isinstance(condition, str) else "",
+                    "precip_prob": precip_prob,
+                }
+            )
+        context["weather_daily"] = daily_rows
+
+    return context
+
+
+def _build_weather_modal_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "modal_weather_available": False,
+        "modal_weather_temp_display": None,
+        "modal_weather_unit_symbol": "C",
+        "modal_weather_condition": None,
+        "modal_weather_location_label": None,
+        "modal_weather_provider_label": "Open-Meteo",
+        "modal_weather_coordinates": None,
+        "modal_weather_updated_at": None,
+        "modal_weather_is_stale": True,
+        "modal_weather_daily": [],
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    snapshot = payload.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return context
+
+    provider = payload.get("provider")
+    if isinstance(provider, str) and provider.strip():
+        context["modal_weather_provider_label"] = provider.replace("_", " ").title()
+
+    units = payload.get("units")
+    if units == "imperial":
+        context["modal_weather_unit_symbol"] = "F"
+
+    context["modal_weather_is_stale"] = cache_entry.is_stale()
+
+    location_label = payload.get("location_label")
+    if isinstance(location_label, str) and location_label.strip():
+        context["modal_weather_location_label"] = location_label.strip()
+
+    lat = _to_float(payload.get("lat"))
+    lon = _to_float(payload.get("lon"))
+    if lat is not None and lon is not None:
+        context["modal_weather_coordinates"] = f"{lat:.3f}, {lon:.3f}"
+
+    refreshed_at = payload.get("refreshed_at_utc")
+    snapshot_updated = snapshot.get("updated_at")
+    context["modal_weather_updated_at"] = (
+        _format_local_refresh(refreshed_at, settings)
+        or _format_local_refresh(snapshot_updated, settings)
+    )
+
+    temp = _to_float(snapshot.get("temp"))
+    if temp is not None:
+        context["modal_weather_temp_display"] = f"{temp:.1f}"
+        context["modal_weather_available"] = True
+
+    condition = snapshot.get("condition")
+    if isinstance(condition, str) and condition.strip():
+        context["modal_weather_condition"] = condition.strip()
+
+    daily_data = snapshot.get("daily")
+    if isinstance(daily_data, list):
+        daily_rows: list[dict[str, Any]] = []
+        for item in daily_data[: settings.yaml.weather.show_daily_days]:
+            if not isinstance(item, dict):
+                continue
+            min_temp = _to_float(item.get("min_temp"))
+            max_temp = _to_float(item.get("max_temp"))
+            if min_temp is None or max_temp is None:
+                continue
+            condition = item.get("condition")
+            precip_prob = _to_int(item.get("precip_prob"))
+            daily_rows.append(
+                {
+                    "day_label": _format_day_label_long(item.get("date")),
+                    "condition": condition if isinstance(condition, str) and condition.strip() else "--",
+                    "max_temp_display": f"{max_temp:.0f}",
+                    "min_temp_display": f"{min_temp:.0f}",
+                    "precip_display": f"{precip_prob}%" if precip_prob is not None else "--",
+                }
+            )
+        context["modal_weather_daily"] = daily_rows
+
+    return context
+
+
 def _component_response(request: Request, widget_name: str) -> HTMLResponse:
     settings = _get_settings(request)
     template_name = COMPONENT_TEMPLATES[widget_name]
@@ -94,6 +289,7 @@ async def lifespan(application: FastAPI):
     settings = load_settings()
     initialize_database(settings.db_path)
     run_dummy_refresh_job(settings)
+    run_weather_refresh_job(settings)
     scheduler = build_scheduler(settings)
     scheduler.start()
 
@@ -126,6 +322,8 @@ async def dashboard_page(request: Request) -> HTMLResponse:
     if isinstance(dummy_refresh, dict):
         refresh_display = _format_local_refresh(dummy_refresh.get("refreshed_at_utc"), settings)
 
+    weather_context = _build_weather_tile_context(settings)
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -140,6 +338,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
             "timezone_name": settings.env.dashboard_timezone,
             "dummy_refresh_display": refresh_display,
             "scheduler_running": request.app.state.scheduler.running,
+            **weather_context,
         },
     )
 
@@ -148,6 +347,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
 async def health(request: Request) -> JSONResponse:
     settings = _get_settings(request)
     dummy_entry = get_cache_entry(settings.db_path, DUMMY_REFRESH_CACHE_KEY)
+    weather_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
 
     return JSONResponse(
         {
@@ -157,6 +357,7 @@ async def health(request: Request) -> JSONResponse:
             "timezone": settings.env.dashboard_timezone,
             "scheduler_running": request.app.state.scheduler.running,
             "dummy_refresh": dummy_entry.payload if dummy_entry else None,
+            "weather_refresh": weather_entry.payload if weather_entry else None,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -169,7 +370,16 @@ async def partial_calendar(request: Request) -> HTMLResponse:
 
 @app.get("/partials/weather", response_class=HTMLResponse)
 async def partial_weather(request: Request) -> HTMLResponse:
-    return _component_response(request, "weather")
+    settings = _get_settings(request)
+    weather_context = _build_weather_tile_context(settings)
+    return templates.TemplateResponse(
+        "components/tile_weather.html",
+        {
+            "request": request,
+            "updated_at": _updated_at(settings.timezone),
+            **weather_context,
+        },
+    )
 
 
 @app.get("/partials/transit", response_class=HTMLResponse)
@@ -218,14 +428,20 @@ async def modal(request: Request, widget_name: str) -> HTMLResponse:
     if cached_payload is not None:
         payload_preview = json.dumps(cached_payload, indent=2, ensure_ascii=False)
 
+    weather_modal_context: dict[str, Any] = {}
+    if widget_name == "weather":
+        weather_modal_context = _build_weather_modal_context(settings)
+
     return templates.TemplateResponse(
         "components/modal.html",
         {
             "request": request,
             "widget_name": widget_name,
             "widget_title": widget_title,
+            "is_weather_widget": widget_name == "weather",
             "updated_at": _updated_at(settings.timezone),
             "cache_key": cache_key,
             "cached_payload_preview": payload_preview,
+            **weather_modal_context,
         },
     )

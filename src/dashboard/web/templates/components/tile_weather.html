@@ -4,9 +4,36 @@
     <button class="tile-action" type="button" data-open-modal="weather">Expand</button>
   </header>
   <div class="tile-body">
+    {% if weather_available %}
+    <p class="metric">{{ weather_temp_display }}&deg;{{ weather_unit_symbol }}</p>
+    {% if weather_condition %}
+    <p class="weather-condition">{{ weather_condition }}</p>
+    {% endif %}
+    {% if weather_location_label %}
+    <p class="weather-location">{{ weather_location_label }}</p>
+    {% endif %}
+    {% if weather_daily %}
+    <ul class="weather-forecast-list">
+      {% for day in weather_daily %}
+      <li class="weather-forecast-item">
+        <span class="weather-forecast-day">{{ day.day_label }}</span>
+        <span class="weather-forecast-temp">{{ day.max_temp_display }}&deg;/{{ day.min_temp_display }}&deg;</span>
+        {% if day.precip_prob is not none %}
+        <span class="weather-forecast-precip">{{ day.precip_prob }}%</span>
+        {% else %}
+        <span class="weather-forecast-precip">--</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% else %}
     <p class="metric">--</p>
     <p class="empty-state">Current and daily forecast will appear here.</p>
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ weather_updated_at or updated_at or generated_at }}
+    {% if weather_available and weather_is_stale %}(stale){% endif %}
+  </footer>
 </section>
-

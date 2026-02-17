@@ -7,4 +7,10 @@ ui:
 refresh:
   interval_minutes: 10
   jitter_seconds: 15
-
+location:
+  mode: "auto"
+  fallback_city: "Stuttgart, DE"
+weather:
+  provider: "open_meteo"
+  units: "metric"
+  show_daily_days: 5

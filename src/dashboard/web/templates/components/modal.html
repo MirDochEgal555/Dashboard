@@ -5,12 +5,78 @@
       <button class="modal-close" type="button" data-close-modal>Close</button>
     </header>
     <div class="modal-body">
+      {% if is_weather_widget %}
+      {% if modal_weather_available %}
+      <section class="modal-weather-summary">
+        <div class="modal-weather-current">
+          <p class="modal-weather-metric">{{ modal_weather_temp_display }}&deg;{{ modal_weather_unit_symbol }}</p>
+          {% if modal_weather_condition %}
+          <p class="modal-weather-condition">{{ modal_weather_condition }}</p>
+          {% endif %}
+          {% if modal_weather_location_label %}
+          <p class="modal-weather-location">{{ modal_weather_location_label }}</p>
+          {% endif %}
+        </div>
+        <dl class="modal-weather-meta-grid">
+          <div>
+            <dt>Provider</dt>
+            <dd>{{ modal_weather_provider_label }}</dd>
+          </div>
+          <div>
+            <dt>Coordinates</dt>
+            <dd>{{ modal_weather_coordinates or "--" }}</dd>
+          </div>
+          <div>
+            <dt>Last refresh</dt>
+            <dd>{{ modal_weather_updated_at or "--" }}</dd>
+          </div>
+          <div>
+            <dt>State</dt>
+            <dd>{% if modal_weather_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+          </div>
+        </dl>
+      </section>
+
+      {% if modal_weather_daily %}
+      <table class="modal-weather-table">
+        <thead>
+          <tr>
+            <th scope="col">Day</th>
+            <th scope="col">Condition</th>
+            <th scope="col">High / Low</th>
+            <th scope="col">Precip</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in modal_weather_daily %}
+          <tr>
+            <td>{{ day.day_label }}</td>
+            <td>{{ day.condition }}</td>
+            <td>{{ day.max_temp_display }}&deg; / {{ day.min_temp_display }}&deg;</td>
+            <td>{{ day.precip_display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% else %}
+      <p class="empty-state">No weather data cached yet.</p>
+      {% endif %}
+      {% else %}
       <p>Expanded view for <strong>{{ widget_name }}</strong>.</p>
+      {% if cached_payload_preview %}
+      <p class="modal-meta">A specialized expanded view is not implemented for this widget yet.</p>
+      {% endif %}
+      {% endif %}
+
       {% if cache_key %}
       <p class="modal-meta">Cache key: <code>{{ cache_key }}</code></p>
       {% endif %}
       {% if cached_payload_preview %}
-      <pre class="modal-json">{{ cached_payload_preview }}</pre>
+      <details class="modal-raw-details">
+        <summary>Raw payload</summary>
+        <pre class="modal-json">{{ cached_payload_preview }}</pre>
+      </details>
       {% else %}
       <p class="empty-state">No cached payload available yet for this widget.</p>
       {% endif %}
