@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="dashboard-shell" data-right-rotation-seconds="{{ right_rotation_seconds }}">
+<div
+  class="dashboard-shell"
+  data-right-rotation-seconds="{{ right_rotation_seconds }}"
+  style="--left-column-width: {{ left_column_width }};"
+>
   <aside class="left-column">
     <section class="tile tile-time">
       <header class="tile-header">
@@ -21,7 +25,17 @@
         <h2>Status</h2>
       </header>
       <div class="tile-body">
-        <p class="empty-state">Step 1 scaffold complete: layout, templates, static assets.</p>
+        <p class="status-line">Environment: {{ environment }}</p>
+        <p class="status-line">Timezone: {{ timezone_name }}</p>
+        <p class="status-line">
+          Scheduler:
+          {% if scheduler_running %}running{% else %}stopped{% endif %}
+        </p>
+        <p class="status-line">
+          Dummy refresh:
+          {% if dummy_refresh_display %}{{ dummy_refresh_display }}{% else %}pending{% endif %}
+        </p>
+        <p class="status-line">Refresh interval: every {{ refresh_interval_minutes }} minutes</p>
       </div>
       <footer class="tile-footer">Updated {{ generated_at }}</footer>
     </section>
@@ -50,4 +64,3 @@
 </div>
 <div id="modal-root"></div>
 {% endblock %}
-

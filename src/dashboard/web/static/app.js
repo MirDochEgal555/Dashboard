@@ -3,6 +3,7 @@
   const modalRoot = document.getElementById("modal-root");
   const clockValue = document.getElementById("clock-value");
   const clockDate = document.getElementById("clock-date");
+  const desktopBreakpoint = window.matchMedia("(max-width: 980px)");
 
   const updateClock = () => {
     if (!clockValue || !clockDate) {
@@ -23,7 +24,7 @@
   };
 
   const initRightPanelRotation = () => {
-    if (!shell || window.matchMedia("(max-width: 980px)").matches) {
+    if (!shell) {
       return;
     }
 
@@ -33,17 +34,41 @@
     }
 
     const seconds = Number(shell.dataset.rightRotationSeconds || "60");
-    let activeIndex = panels.findIndex((panel) => panel.classList.contains("is-active"));
-    if (activeIndex < 0) {
-      activeIndex = 0;
-      panels[0].classList.add("is-active");
-    }
+    let activeIndex = Math.max(
+      0,
+      panels.findIndex((panel) => panel.classList.contains("is-active")),
+    );
+    let timerId = null;
 
-    window.setInterval(() => {
-      panels[activeIndex].classList.remove("is-active");
-      activeIndex = (activeIndex + 1) % panels.length;
-      panels[activeIndex].classList.add("is-active");
-    }, seconds * 1000);
+    const showActivePanel = () => {
+      panels.forEach((panel, index) => {
+        panel.classList.toggle("is-active", index === activeIndex);
+      });
+    };
+
+    const startRotation = () => {
+      if (timerId) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+
+      if (desktopBreakpoint.matches) {
+        return;
+      }
+
+      showActivePanel();
+      timerId = window.setInterval(() => {
+        activeIndex = (activeIndex + 1) % panels.length;
+        showActivePanel();
+      }, seconds * 1000);
+    };
+
+    startRotation();
+    if (desktopBreakpoint.addEventListener) {
+      desktopBreakpoint.addEventListener("change", startRotation);
+    } else {
+      desktopBreakpoint.addListener(startRotation);
+    }
   };
 
   const closeModal = () => {
@@ -52,29 +77,38 @@
     }
   };
 
+  const openModal = async (widgetName) => {
+    if (!widgetName || !modalRoot) {
+      return;
+    }
+    try {
+      const response = await fetch(`/modals/${widgetName}`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load modal for ${widgetName}`);
+      }
+      modalRoot.innerHTML = await response.text();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const initModalEvents = () => {
     document.addEventListener("click", async (event) => {
       const openTrigger = event.target.closest("[data-open-modal]");
       if (openTrigger) {
         const widgetName = openTrigger.getAttribute("data-open-modal");
-        if (!widgetName || !modalRoot) {
-          return;
-        }
-        try {
-          const response = await fetch(`/modals/${widgetName}`, {
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to load modal for ${widgetName}`);
-          }
-          modalRoot.innerHTML = await response.text();
-        } catch (error) {
-          console.error(error);
-        }
+        await openModal(widgetName);
         return;
       }
 
       if (event.target.closest("[data-close-modal]")) {
+        closeModal();
+        return;
+      }
+
+      if (event.target.matches("[data-modal-backdrop]")) {
         closeModal();
       }
     });
@@ -90,4 +124,3 @@
   initRightPanelRotation();
   initModalEvents();
 })();
-

@@ -1,6 +1,26 @@
 .venv/
 __pycache__/
 *.py[cod]
-.env
-data/dashboard.db
 
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime and local state
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite*
+*.log
+
+# Editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Local photo assets should stay private by default
+photos/*
+!photos/.gitkeep

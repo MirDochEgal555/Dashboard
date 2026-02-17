@@ -8,6 +8,7 @@
   --text-muted: #a6b9d5;
   --accent: #ffb74a;
   --accent-2: #62d4ff;
+  --left-column-width: 30%;
 }
 
 * {
@@ -22,11 +23,12 @@ body {
   background: radial-gradient(circle at 15% 15%, #1f3a63 0, transparent 34%),
     radial-gradient(circle at 92% 12%, #2a5c82 0, transparent 30%),
     linear-gradient(140deg, var(--bg-start), var(--bg-end));
+  overflow: hidden;
 }
 
 .dashboard-shell {
   display: grid;
-  grid-template-columns: minmax(270px, 31vw) 1fr;
+  grid-template-columns: minmax(260px, var(--left-column-width)) minmax(0, 1fr);
   gap: 0.9rem;
   min-height: 100vh;
   padding: 0.9rem;
@@ -39,16 +41,36 @@ body {
   align-content: start;
 }
 
+.left-column {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 1.8rem);
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
 .right-column {
   position: relative;
+  min-height: calc(100vh - 1.8rem);
 }
 
 .rotating-panel {
   display: none;
+  min-height: calc(100vh - 1.8rem);
 }
 
 .rotating-panel.is-active {
   display: block;
+}
+
+.rotating-panel .tile {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rotating-panel .tile-body {
+  flex: 1;
 }
 
 .tile {
@@ -133,6 +155,15 @@ body {
   color: var(--text-muted);
 }
 
+.status-line {
+  margin: 0 0 0.3rem;
+  color: var(--text-muted);
+}
+
+.status-line:last-child {
+  margin-bottom: 0;
+}
+
 .quote-placeholder {
   margin: 0;
   color: #d9e8ff;
@@ -194,13 +225,47 @@ body {
   color: #d8e8ff;
 }
 
+.modal-meta {
+  color: var(--text-muted);
+  margin-top: 0;
+}
+
+.modal-json {
+  margin: 0;
+  border: 1px solid rgba(121, 182, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(4, 10, 19, 0.6);
+  color: #d8e8ff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow-x: auto;
+  padding: 0.9rem;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
+  body {
+    overflow: auto;
+  }
+
   .dashboard-shell {
     grid-template-columns: 1fr;
   }
 
+  .left-column {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
+  .right-column,
   .rotating-panel {
     display: block;
+    min-height: auto;
+  }
+
+  .rotating-panel .tile {
+    height: auto;
   }
 }
-

@@ -1,12 +1,14 @@
-# Raspberry Pi Dashboard (Step 1 Scaffold)
+# Raspberry Pi Dashboard (Steps 1-6 Baseline)
 
 Local-first dashboard app built with FastAPI + Jinja templates.
 
 This repository currently includes:
 - FastAPI server skeleton
-- Dashboard page + tile templates
-- Static CSS/JS assets
-- Placeholder partial and modal routes
+- Typed settings loader (`.env` + `config/dashboard.yaml`) with validation
+- SQLite cache table + helper functions
+- APScheduler integration with a dummy refresh job
+- Dashboard layout with fixed left column + rotating right panels
+- Modal component with click-to-expand behavior
 
 ## Quick Start (Windows / PowerShell)
 
@@ -39,11 +41,19 @@ Health check:
 ## Useful Files
 
 - App entrypoint: `src/dashboard/main.py`
+- Settings loader: `src/dashboard/settings.py`
+- Scheduler: `src/dashboard/scheduler.py`
+- SQLite helpers: `src/dashboard/storage/`
 - Templates: `src/dashboard/web/templates/`
 - Static assets: `src/dashboard/web/static/`
 - Config stub: `config/dashboard.yaml`
 
 ## Current Status
 
-Only step 1 from `project.md` is implemented so far (skeleton + templates + static assets).
-
+Steps 1-6 from `project.md` are implemented:
+1. FastAPI skeleton + templates + static assets
+2. Settings loader (`.env` + YAML) and validation
+3. SQLite cache table + helper functions
+4. Scheduler + one dummy refresh job
+5. Dashboard layout (left fixed + right rotating panels)
+6. Modal component + click-to-expand behavior
