@@ -29,11 +29,16 @@
     }
 
     const panels = Array.from(document.querySelectorAll(".rotating-panel"));
+    const nextButton = document.querySelector("[data-rotate-next]");
     if (panels.length <= 1) {
+      if (nextButton) {
+        nextButton.hidden = true;
+      }
       return;
     }
 
     const seconds = Number(shell.dataset.rightRotationSeconds || "60");
+    const intervalMs = Math.max(seconds, 5) * 1000;
     let activeIndex = Math.max(
       0,
       panels.findIndex((panel) => panel.classList.contains("is-active")),
@@ -46,22 +51,49 @@
       });
     };
 
-    const startRotation = () => {
+    const stopRotation = () => {
       if (timerId) {
         window.clearInterval(timerId);
         timerId = null;
       }
+    };
+
+    const showNextPanel = () => {
+      activeIndex = (activeIndex + 1) % panels.length;
+      showActivePanel();
+    };
+
+    const restartRotationTimer = () => {
+      stopRotation();
+      timerId = window.setInterval(showNextPanel, intervalMs);
+    };
+
+    const startRotation = () => {
+      stopRotation();
 
       if (desktopBreakpoint.matches) {
+        if (nextButton) {
+          nextButton.hidden = true;
+        }
         return;
       }
 
+      if (nextButton) {
+        nextButton.hidden = false;
+      }
       showActivePanel();
-      timerId = window.setInterval(() => {
-        activeIndex = (activeIndex + 1) % panels.length;
-        showActivePanel();
-      }, seconds * 1000);
+      restartRotationTimer();
     };
+
+    if (nextButton) {
+      nextButton.addEventListener("click", () => {
+        if (desktopBreakpoint.matches) {
+          return;
+        }
+        showNextPanel();
+        restartRotationTimer();
+      });
+    }
 
     startRotation();
     if (desktopBreakpoint.addEventListener) {
@@ -69,6 +101,68 @@
     } else {
       desktopBreakpoint.addListener(startRotation);
     }
+  };
+
+  const initPhotoRotation = () => {
+    const rotators = Array.from(document.querySelectorAll("[data-photo-rotator]"));
+    if (rotators.length === 0) {
+      return;
+    }
+
+    rotators.forEach((rotator) => {
+      if (rotator.dataset.photoRotationInitialized === "true") {
+        return;
+      }
+      rotator.dataset.photoRotationInitialized = "true";
+
+      const slides = Array.from(rotator.querySelectorAll("[data-photo-slide]"));
+      if (slides.length === 0) {
+        return;
+      }
+
+      const caption = rotator.querySelector("[data-photo-caption]");
+      const rotationSeconds = Number(rotator.dataset.photoRotationSeconds || "120");
+      const intervalSeconds = Number.isFinite(rotationSeconds)
+        ? Math.max(rotationSeconds, 5)
+        : 120;
+      let activeIndex = Math.max(
+        0,
+        slides.findIndex((slide) => slide.classList.contains("is-active")),
+      );
+
+      const render = () => {
+        slides.forEach((slide, index) => {
+          const isActive = index === activeIndex;
+          slide.classList.toggle("is-active", isActive);
+          slide.setAttribute("aria-hidden", isActive ? "false" : "true");
+        });
+
+        if (caption) {
+          const activeSlide = slides[activeIndex];
+          const activeCaption = activeSlide.dataset.caption;
+          caption.textContent =
+            activeCaption && activeCaption.trim().length > 0
+              ? activeCaption
+              : `Photo ${activeIndex + 1} of ${slides.length}`;
+        }
+      };
+
+      render();
+      if (slides.length <= 1) {
+        return;
+      }
+
+      const rotate = () => {
+        if (!rotator.isConnected) {
+          return;
+        }
+        activeIndex = (activeIndex + 1) % slides.length;
+        render();
+        window.setTimeout(rotate, intervalSeconds * 1000);
+      };
+
+      window.setTimeout(rotate, intervalSeconds * 1000);
+    });
   };
 
   const closeModal = () => {
@@ -122,5 +216,10 @@
 
   initClock();
   initRightPanelRotation();
+  initPhotoRotation();
   initModalEvents();
+
+  document.body.addEventListener("htmx:afterSwap", () => {
+    initPhotoRotation();
+  });
 })();

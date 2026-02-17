@@ -54,6 +54,29 @@ body {
   min-height: calc(100vh - 1.8rem);
 }
 
+.rotation-controls {
+  position: absolute;
+  top: 0.72rem;
+  right: 0.72rem;
+  z-index: 5;
+}
+
+.rotation-skip-button {
+  border: 1px solid rgba(98, 212, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(8, 20, 38, 0.74);
+  color: var(--text-main);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.77rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+
+.rotation-skip-button:hover {
+  background: rgba(34, 77, 120, 0.72);
+}
+
 .rotating-panel {
   display: none;
   min-height: calc(100vh - 1.8rem);
@@ -213,12 +236,54 @@ body {
   font-style: italic;
 }
 
+.photo-rotator {
+  position: relative;
+  min-height: clamp(220px, 44vh, 520px);
+  border: 1px solid rgba(98, 212, 255, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(4, 10, 19, 0.38);
+}
+
+.photo-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 420ms ease-in-out;
+}
+
+.photo-slide.is-active {
+  opacity: 1;
+}
+
+.photo-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.58rem 0.74rem;
+  font-size: 0.82rem;
+  color: #ebf4ff;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 10, 19, 0) 0%,
+    rgba(4, 10, 19, 0.72) 58%,
+    rgba(4, 10, 19, 0.92) 100%
+  );
+}
+
 .photo-placeholder {
-  min-height: 160px;
+  min-height: clamp(180px, 34vh, 420px);
   border: 1px dashed rgba(98, 212, 255, 0.36);
   border-radius: 10px;
   display: grid;
   place-items: center;
+  text-align: center;
+  padding: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -406,6 +471,10 @@ body {
   .rotating-panel {
     display: block;
     min-height: auto;
+  }
+
+  .rotation-controls {
+    display: none;
   }
 
   .rotating-panel .tile {

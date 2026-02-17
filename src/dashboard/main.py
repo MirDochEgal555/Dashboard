@@ -5,17 +5,20 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .scheduler import (
     DUMMY_REFRESH_CACHE_KEY,
+    PHOTOS_REFRESH_CACHE_KEY,
     WEATHER_REFRESH_CACHE_KEY,
     build_scheduler,
     run_dummy_refresh_job,
+    run_photos_refresh_job,
     run_weather_refresh_job,
 )
 from .settings import AppSettings, load_settings
@@ -36,7 +39,7 @@ WIDGET_TITLES = {
     "news": "News",
     "finance": "Finance",
     "sports": "Sports",
-    "photo": "Photo",
+    "photo": "Photos",
     "quote": "Quote",
 }
 
@@ -58,7 +61,7 @@ WIDGET_CACHE_KEYS = {
     "news": "news.headlines",
     "finance": "finance.quotes",
     "sports": "sports.scores",
-    "photo": "photos.index",
+    "photo": PHOTOS_REFRESH_CACHE_KEY,
     "quote": "quote.current",
 }
 
@@ -116,6 +119,22 @@ def _format_day_label_long(raw_date: Any) -> str:
         return datetime.fromisoformat(raw_date).strftime("%a, %b %d")
     except ValueError:
         return raw_date
+
+
+def _normalize_photo_relative_path(raw_path: Any) -> str | None:
+    if not isinstance(raw_path, str):
+        return None
+    normalized = raw_path.strip().replace("\\", "/")
+    if not normalized:
+        return None
+    parts = [part for part in normalized.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        return None
+    return "/".join(parts)
+
+
+def _build_photo_url(relative_path: str) -> str:
+    return f"/photo-files/{quote(relative_path, safe='/')}"
 
 
 def _build_weather_tile_context(settings: AppSettings) -> dict[str, Any]:
@@ -275,6 +294,55 @@ def _build_weather_modal_context(settings: AppSettings) -> dict[str, Any]:
     return context
 
 
+def _build_photo_tile_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "photo_available": False,
+        "photo_items": [],
+        "photo_current_caption": None,
+        "photo_total_count": 0,
+        "photo_updated_at": None,
+        "photo_is_stale": True,
+        "photo_rotation_seconds": settings.yaml.ui.photo_rotation_seconds,
+        "photos_folder_hint": settings.yaml.photos.folder.as_posix(),
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, PHOTOS_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    context["photo_is_stale"] = cache_entry.is_stale()
+    context["photo_updated_at"] = _format_local_refresh(payload.get("refreshed_at_utc"), settings)
+
+    items_data = payload.get("items")
+    if not isinstance(items_data, list):
+        return context
+
+    items: list[dict[str, Any]] = []
+    for item in items_data:
+        if not isinstance(item, dict):
+            continue
+        path = _normalize_photo_relative_path(item.get("path"))
+        if path is None:
+            continue
+        raw_caption = item.get("caption")
+        caption = raw_caption.strip() if isinstance(raw_caption, str) and raw_caption.strip() else None
+        items.append(
+            {
+                "url": _build_photo_url(path),
+                "caption": caption,
+            }
+        )
+
+    context["photo_items"] = items
+    context["photo_total_count"] = len(items)
+    if items:
+        context["photo_available"] = True
+        context["photo_current_caption"] = items[0]["caption"]
+
+    return context
+
+
 def _component_response(request: Request, widget_name: str) -> HTMLResponse:
     settings = _get_settings(request)
     template_name = COMPONENT_TEMPLATES[widget_name]
@@ -290,6 +358,7 @@ async def lifespan(application: FastAPI):
     initialize_database(settings.db_path)
     run_dummy_refresh_job(settings)
     run_weather_refresh_job(settings)
+    run_photos_refresh_job(settings)
     scheduler = build_scheduler(settings)
     scheduler.start()
 
@@ -323,6 +392,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
         refresh_display = _format_local_refresh(dummy_refresh.get("refreshed_at_utc"), settings)
 
     weather_context = _build_weather_tile_context(settings)
+    photo_context = _build_photo_tile_context(settings)
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -339,6 +409,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
             "dummy_refresh_display": refresh_display,
             "scheduler_running": request.app.state.scheduler.running,
             **weather_context,
+            **photo_context,
         },
     )
 
@@ -348,6 +419,7 @@ async def health(request: Request) -> JSONResponse:
     settings = _get_settings(request)
     dummy_entry = get_cache_entry(settings.db_path, DUMMY_REFRESH_CACHE_KEY)
     weather_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
+    photos_entry = get_cache_entry(settings.db_path, PHOTOS_REFRESH_CACHE_KEY)
 
     return JSONResponse(
         {
@@ -358,6 +430,7 @@ async def health(request: Request) -> JSONResponse:
             "scheduler_running": request.app.state.scheduler.running,
             "dummy_refresh": dummy_entry.payload if dummy_entry else None,
             "weather_refresh": weather_entry.payload if weather_entry else None,
+            "photos_refresh": photos_entry.payload if photos_entry else None,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -404,12 +477,43 @@ async def partial_sports(request: Request) -> HTMLResponse:
 
 @app.get("/partials/photo", response_class=HTMLResponse)
 async def partial_photo(request: Request) -> HTMLResponse:
-    return _component_response(request, "photo")
+    settings = _get_settings(request)
+    photo_context = _build_photo_tile_context(settings)
+    return templates.TemplateResponse(
+        "components/tile_photo.html",
+        {
+            "request": request,
+            "updated_at": _updated_at(settings.timezone),
+            **photo_context,
+        },
+    )
 
 
 @app.get("/partials/quote", response_class=HTMLResponse)
 async def partial_quote(request: Request) -> HTMLResponse:
     return _component_response(request, "quote")
+
+
+@app.get("/photo-files/{photo_path:path}", response_class=FileResponse)
+async def photo_file(request: Request, photo_path: str) -> FileResponse:
+    settings = _get_settings(request)
+    normalized_path = _normalize_photo_relative_path(photo_path)
+    if normalized_path is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    root_path = settings.photos_path.resolve()
+    target_path = (root_path / normalized_path).resolve()
+    try:
+        target_path.relative_to(root_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Photo not found") from exc
+
+    if target_path.suffix.lower() not in settings.yaml.photos.extensions:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    if not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    return FileResponse(target_path)
 
 
 @app.get("/modals/{widget_name}", response_class=HTMLResponse)

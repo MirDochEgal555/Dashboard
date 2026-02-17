@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from .adapters.photos import LocalFolderPhotosAdapter, PhotosAdapterError
 from .adapters.weather import OpenMeteoWeatherAdapter, WeatherAdapterError
 from .location.service import LocationResolutionError, get_location
 from .settings import AppSettings
@@ -14,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 
 DUMMY_REFRESH_CACHE_KEY = "system.dummy_refresh"
 WEATHER_REFRESH_CACHE_KEY = "weather.snapshot"
+PHOTOS_REFRESH_CACHE_KEY = "photos.index"
+PHOTOS_SCAN_INTERVAL_MINUTES = 60
 
 
 def run_dummy_refresh_job(settings: AppSettings) -> None:
@@ -41,6 +44,13 @@ def _build_weather_adapter(settings: AppSettings) -> OpenMeteoWeatherAdapter:
     return OpenMeteoWeatherAdapter(
         units=settings.yaml.weather.units,
         timezone_name=settings.env.dashboard_timezone,
+    )
+
+
+def _build_photos_adapter(settings: AppSettings) -> LocalFolderPhotosAdapter:
+    return LocalFolderPhotosAdapter(
+        folder=settings.photos_path,
+        extensions=settings.yaml.photos.extensions,
     )
 
 
@@ -81,6 +91,36 @@ def run_weather_refresh_job(settings: AppSettings) -> None:
     LOGGER.info("Weather refresh job updated '%s' at %s", WEATHER_REFRESH_CACHE_KEY, refreshed_at)
 
 
+def run_photos_refresh_job(settings: AppSettings) -> None:
+    refreshed_at = datetime.now(timezone.utc)
+    try:
+        adapter = _build_photos_adapter(settings)
+        photos = adapter.get_photos()
+    except PhotosAdapterError:
+        LOGGER.exception("Photos refresh job failed")
+        return
+    except Exception:  # pragma: no cover - defensive fallback
+        LOGGER.exception("Photos refresh job failed")
+        return
+
+    payload = {
+        "folder": str(settings.photos_path),
+        "extensions": settings.yaml.photos.extensions,
+        "refreshed_at_utc": refreshed_at.isoformat(),
+        "count": len(photos),
+        "items": [photo.model_dump(mode="json") for photo in photos],
+    }
+    ttl_seconds = max(PHOTOS_SCAN_INTERVAL_MINUTES * 120, 3600)
+    set_cache_entry(
+        settings.db_path,
+        PHOTOS_REFRESH_CACHE_KEY,
+        payload,
+        ttl_seconds=ttl_seconds,
+        fetched_at=refreshed_at,
+    )
+    LOGGER.info("Photos refresh job updated '%s' at %s", PHOTOS_REFRESH_CACHE_KEY, refreshed_at)
+
+
 def build_scheduler(settings: AppSettings) -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone=settings.timezone)
     scheduler.add_job(
@@ -106,5 +146,17 @@ def build_scheduler(settings: AppSettings) -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=120,
+    )
+    scheduler.add_job(
+        run_photos_refresh_job,
+        "interval",
+        kwargs={"settings": settings},
+        minutes=PHOTOS_SCAN_INTERVAL_MINUTES,
+        jitter=settings.yaml.refresh.jitter_seconds,
+        id="photos_refresh_job",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
     return scheduler

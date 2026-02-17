@@ -1,3 +1,3 @@
-from .models import DailyForecast, WeatherSnapshot
+from .models import DailyForecast, PhotoItem, WeatherSnapshot
 
-__all__ = ["DailyForecast", "WeatherSnapshot"]
+__all__ = ["DailyForecast", "PhotoItem", "WeatherSnapshot"]

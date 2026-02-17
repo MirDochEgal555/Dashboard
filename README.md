@@ -1,4 +1,4 @@
-# Raspberry Pi Dashboard (Steps 1-7 Baseline)
+# Raspberry Pi Dashboard (Steps 1-8 Baseline)
 
 Local-first dashboard app built with FastAPI + Jinja templates.
 
@@ -11,6 +11,7 @@ This repository currently includes:
 - Modal component with click-to-expand behavior
 - Weather refresh job using Open-Meteo with IP-based auto location + fallback city
 - Weather tile rendering current conditions and daily forecast from cache
+- Local photos adapter (folder scan) with cached index, photo tile rendering, and client-side slide rotation
 
 ## Quick Start (Windows / PowerShell)
 
@@ -52,7 +53,7 @@ Health check:
 
 ## Current Status
 
-Steps 1-7 from `project.md` are implemented:
+Steps 1-8 from `project.md` are implemented:
 1. FastAPI skeleton + templates + static assets
 2. Settings loader (`.env` + YAML) and validation
 3. SQLite cache table + helper functions
@@ -60,3 +61,4 @@ Steps 1-7 from `project.md` are implemented:
 5. Dashboard layout (left fixed + right rotating panels)
 6. Modal component + click-to-expand behavior
 7. Weather adapter (Open-Meteo first) + tile
+8. Local photos adapter + tile + rotation

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DailyForecast(BaseModel):
@@ -22,3 +22,18 @@ class WeatherSnapshot(BaseModel):
     condition: str
     daily: list[DailyForecast] = Field(default_factory=list)
     updated_at: datetime
+
+
+class PhotoItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    path: str
+    caption: str | None = None
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("photo path must not be empty")
+        return text

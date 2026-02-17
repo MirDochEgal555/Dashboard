@@ -73,6 +73,40 @@ class WeatherSettings(BaseModel):
     show_daily_days: int = Field(default=5, ge=1, le=10)
 
 
+class PhotosSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    folder: Path = Path("photos")
+    extensions: list[str] = Field(default_factory=lambda: [".jpg", ".jpeg", ".png", ".webp"])
+
+    @field_validator("folder")
+    @classmethod
+    def validate_folder(cls, value: Path) -> Path:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("photos.folder must not be empty")
+        return Path(text)
+
+    @field_validator("extensions")
+    @classmethod
+    def validate_extensions(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_extension in values:
+            if not isinstance(raw_extension, str):
+                raise ValueError("photos.extensions entries must be strings")
+            extension = raw_extension.strip().lower()
+            if not extension:
+                raise ValueError("photos.extensions entries must not be empty")
+            if not extension.startswith("."):
+                extension = f".{extension}"
+            normalized.append(extension)
+
+        deduplicated = list(dict.fromkeys(normalized))
+        if not deduplicated:
+            raise ValueError("photos.extensions must contain at least one extension")
+        return deduplicated
+
+
 class DashboardYamlSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -80,6 +114,7 @@ class DashboardYamlSettings(BaseModel):
     refresh: RefreshSettings = Field(default_factory=RefreshSettings)
     location: LocationSettings = Field(default_factory=LocationSettings)
     weather: WeatherSettings = Field(default_factory=WeatherSettings)
+    photos: PhotosSettings = Field(default_factory=PhotosSettings)
 
 
 class EnvSettings(BaseSettings):
@@ -112,6 +147,7 @@ class AppSettings(BaseModel):
     yaml: DashboardYamlSettings
     config_path: Path
     db_path: Path
+    photos_path: Path
     timezone: ZoneInfo
 
 
@@ -139,11 +175,13 @@ def load_settings() -> AppSettings:
     config_path = _resolve_project_path(env.dashboard_config_path)
     db_path = _resolve_project_path(env.dashboard_db_path)
     yaml_settings = _load_yaml_settings(config_path)
+    photos_path = _resolve_project_path(yaml_settings.photos.folder)
     timezone = ZoneInfo(env.dashboard_timezone)
     return AppSettings(
         env=env,
         yaml=yaml_settings,
         config_path=config_path,
         db_path=db_path,
+        photos_path=photos_path,
         timezone=timezone,
     )

@@ -4,8 +4,34 @@
     <button class="tile-action" type="button" data-open-modal="photo">Expand</button>
   </header>
   <div class="tile-body">
-    <div class="photo-placeholder">Photo preview area</div>
+    {% if photo_available %}
+    <figure class="photo-rotator" data-photo-rotator data-photo-rotation-seconds="{{ photo_rotation_seconds }}">
+      {% for item in photo_items %}
+      <img
+        class="photo-slide{% if loop.first %} is-active{% endif %}"
+        data-photo-slide
+        src="{{ item.url }}"
+        data-caption="{{ item.caption or '' }}"
+        alt="{{ item.caption or 'Local photo' }}"
+        loading="{% if loop.first %}eager{% else %}lazy{% endif %}"
+        decoding="async"
+      >
+      {% endfor %}
+      <figcaption class="photo-caption" data-photo-caption>
+        {{ photo_current_caption or ("Photo 1 of " ~ photo_total_count) }}
+      </figcaption>
+    </figure>
+    {% else %}
+    <div class="photo-placeholder">
+      <p class="empty-state">
+        Add images to <code>{{ photos_folder_hint }}</code> to start the slideshow.
+      </p>
+    </div>
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ photo_updated_at or updated_at or generated_at }}
+    {% if photo_available %} | {{ photo_total_count }} photo{% if photo_total_count != 1 %}s{% endif %}{% endif %}
+    {% if photo_available and photo_is_stale %}(stale){% endif %}
+  </footer>
 </section>
-

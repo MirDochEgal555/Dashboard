@@ -14,3 +14,10 @@ weather:
   provider: "open_meteo"
   units: "metric"
   show_daily_days: 5
+photos:
+  folder: "photos"
+  extensions:
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".webp"
