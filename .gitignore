@@ -24,3 +24,9 @@ Thumbs.db
 # Local photo assets should stay private by default
 photos/*
 !photos/.gitkeep
+
+# Local Calenders should stay private
+*.ics
+
+# Local dashboard overrides (can include private calendar URLs)
+config/*.local.yaml

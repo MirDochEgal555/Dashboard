@@ -62,6 +62,62 @@
       {% else %}
       <p class="empty-state">No weather data cached yet.</p>
       {% endif %}
+      {% elif is_calendar_widget %}
+      {% if modal_calendar_available %}
+      <dl class="modal-calendar-meta-grid">
+        <div>
+          <dt>Events</dt>
+          <dd>{{ modal_calendar_event_count }}</dd>
+        </div>
+        <div>
+          <dt>Sources</dt>
+          <dd>{{ modal_calendar_source_count }}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_calendar_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_calendar_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+      {% if modal_calendar_target_date %}
+      <p class="modal-meta">Date: {{ modal_calendar_target_date }}</p>
+      {% endif %}
+
+      <table class="modal-calendar-table">
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Title</th>
+            <th scope="col">Source</th>
+            <th scope="col">Start</th>
+            <th scope="col">End</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in modal_calendar_events %}
+          <tr>
+            <td>{{ event.time_label }}</td>
+            <td>{{ event.display_title }}</td>
+            <td>{{ event.source }}</td>
+            <td>{{ event.start_display }}</td>
+            <td>{{ event.end_display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty-state">No calendar events cached yet for today.</p>
+      {% endif %}
+      {% if modal_calendar_error_messages %}
+      <ul class="modal-calendar-errors">
+        {% for message in modal_calendar_error_messages %}
+        <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       {% else %}
       <p>Expanded view for <strong>{{ widget_name }}</strong>.</p>
       {% if cached_payload_preview %}

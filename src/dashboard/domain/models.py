@@ -2,7 +2,31 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class CalendarEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    title: str
+    start_dt: datetime
+    end_dt: datetime
+    all_day: bool = False
+    source: str
+
+    @field_validator("title", "source")
+    @classmethod
+    def validate_non_empty_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("calendar event text fields must not be empty")
+        return text
+
+    @model_validator(mode="after")
+    def validate_time_range(self) -> CalendarEvent:
+        if self.end_dt < self.start_dt:
+            raise ValueError("calendar event end_dt must be >= start_dt")
+        return self
 
 
 class DailyForecast(BaseModel):

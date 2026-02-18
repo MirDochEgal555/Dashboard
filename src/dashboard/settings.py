@@ -3,10 +3,11 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -65,6 +66,84 @@ class LocationSettings(BaseModel):
         return text
 
 
+class CalendarDisplaySettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    range: Literal["today"] = "today"
+    show_time: bool = True
+    show_title: bool = True
+
+
+class CalendarIcsSourceSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["ics", "ics_url"] = "ics"
+    path: Path | None = None
+    url: str | None = None
+    name: str | None = None
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value: Path | None) -> Path | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            raise ValueError("calendar.sources[].path must not be empty")
+        return Path(text)
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        if not text:
+            raise ValueError("calendar.sources[].url must not be empty")
+
+        parsed = urlparse(text)
+        if parsed.scheme == "webcal":
+            text = parsed._replace(scheme="https").geturl()
+            parsed = urlparse(text)
+
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("calendar.sources[].url must be an absolute http(s) URL")
+        return text
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @model_validator(mode="after")
+    def validate_source_fields(self) -> CalendarIcsSourceSettings:
+        if self.type == "ics":
+            if self.path is None:
+                raise ValueError("calendar.sources[].path is required when type is 'ics'")
+            if self.url is not None:
+                raise ValueError("calendar.sources[].url is not allowed when type is 'ics'")
+            return self
+
+        if self.type == "ics_url":
+            if self.url is None:
+                raise ValueError("calendar.sources[].url is required when type is 'ics_url'")
+            if self.path is not None:
+                raise ValueError("calendar.sources[].path is not allowed when type is 'ics_url'")
+            return self
+
+        raise ValueError(f"Unsupported calendar source type: {self.type}")
+
+
+class CalendarSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    sources: list[CalendarIcsSourceSettings] = Field(default_factory=list)
+    display: CalendarDisplaySettings = Field(default_factory=CalendarDisplaySettings)
+
+
 class WeatherSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -113,6 +192,7 @@ class DashboardYamlSettings(BaseModel):
     ui: UiSettings = Field(default_factory=UiSettings)
     refresh: RefreshSettings = Field(default_factory=RefreshSettings)
     location: LocationSettings = Field(default_factory=LocationSettings)
+    calendar: CalendarSettings = Field(default_factory=CalendarSettings)
     weather: WeatherSettings = Field(default_factory=WeatherSettings)
     photos: PhotosSettings = Field(default_factory=PhotosSettings)
 
@@ -145,6 +225,7 @@ class AppSettings(BaseModel):
 
     env: EnvSettings
     yaml: DashboardYamlSettings
+    project_root: Path
     config_path: Path
     db_path: Path
     photos_path: Path
@@ -180,6 +261,7 @@ def load_settings() -> AppSettings:
     return AppSettings(
         env=env,
         yaml=yaml_settings,
+        project_root=PROJECT_ROOT,
         config_path=config_path,
         db_path=db_path,
         photos_path=photos_path,

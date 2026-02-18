@@ -4,10 +4,41 @@
     <button class="tile-action" type="button" data-open-modal="calendar">Expand</button>
   </header>
   <div class="tile-body">
-    <ul class="placeholder-list">
-      <li>No events loaded yet.</li>
+    {% if calendar_available %}
+    <ul class="calendar-event-list">
+      {% for event in calendar_events %}
+      <li class="calendar-event-item">
+        <div class="calendar-event-main">
+          {% if calendar_show_time and event.time_label %}
+          <span class="calendar-event-time">{{ event.time_label }}</span>
+          {% endif %}
+          <span class="calendar-event-title">{{ event.display_title }}</span>
+        </div>
+        {% if event.source %}
+        <span class="calendar-event-source">{{ event.source }}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
     </ul>
+    {% if calendar_error_count > 0 %}
+    <p class="calendar-note">Some sources failed to refresh.</p>
+    {% endif %}
+    {% else %}
+    <p class="empty-state">
+      {% if calendar_source_count > 0 %}
+      No events found for today.
+      {% else %}
+      Add <code>calendar.sources</code> in <code>config/dashboard.yaml</code> to load events.
+      {% endif %}
+    </p>
+    {% if calendar_error_count > 0 %}
+    <p class="calendar-note">Calendar refresh had source errors.</p>
+    {% endif %}
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ calendar_updated_at or updated_at or generated_at }}
+    {% if calendar_available %} | {{ calendar_event_count }} event{% if calendar_event_count != 1 %}s{% endif %}{% endif %}
+    {% if calendar_is_stale and (calendar_available or calendar_source_count > 0) %}(stale){% endif %}
+  </footer>
 </section>
-

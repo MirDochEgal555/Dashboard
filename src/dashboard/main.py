@@ -13,10 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .scheduler import (
+    CALENDAR_REFRESH_CACHE_KEY,
     DUMMY_REFRESH_CACHE_KEY,
     PHOTOS_REFRESH_CACHE_KEY,
     WEATHER_REFRESH_CACHE_KEY,
     build_scheduler,
+    run_calendar_refresh_job,
     run_dummy_refresh_job,
     run_photos_refresh_job,
     run_weather_refresh_job,
@@ -55,7 +57,7 @@ COMPONENT_TEMPLATES = {
 }
 
 WIDGET_CACHE_KEYS = {
-    "calendar": "calendar.today",
+    "calendar": CALENDAR_REFRESH_CACHE_KEY,
     "weather": WEATHER_REFRESH_CACHE_KEY,
     "transit": "transit.departures",
     "news": "news.headlines",
@@ -101,6 +103,43 @@ def _to_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _format_calendar_time_label(
+    *,
+    start_dt: datetime | None,
+    end_dt: datetime | None,
+    all_day: bool,
+    timezone_value,
+) -> str | None:
+    if all_day:
+        return "All day"
+    if start_dt is None:
+        return None
+
+    local_start = start_dt.astimezone(timezone_value)
+    if end_dt is None:
+        return local_start.strftime("%H:%M")
+
+    local_end = end_dt.astimezone(timezone_value)
+    if local_end <= local_start:
+        return local_start.strftime("%H:%M")
+
+    if local_start.date() == local_end.date():
+        return f"{local_start:%H:%M}-{local_end:%H:%M}"
+    return f"{local_start:%H:%M}-{local_end:%a %H:%M}"
 
 
 def _format_day_label(raw_date: Any) -> str:
@@ -343,6 +382,171 @@ def _build_photo_tile_context(settings: AppSettings) -> dict[str, Any]:
     return context
 
 
+def _build_calendar_tile_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "calendar_available": False,
+        "calendar_events": [],
+        "calendar_event_count": 0,
+        "calendar_updated_at": None,
+        "calendar_is_stale": True,
+        "calendar_error_count": 0,
+        "calendar_source_count": len(settings.yaml.calendar.sources),
+        "calendar_show_time": settings.yaml.calendar.display.show_time,
+        "calendar_show_title": settings.yaml.calendar.display.show_title,
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, CALENDAR_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    context["calendar_is_stale"] = cache_entry.is_stale()
+    context["calendar_updated_at"] = _format_local_refresh(payload.get("refreshed_at_utc"), settings)
+
+    source_count = _to_int(payload.get("source_count"))
+    if source_count is not None and source_count >= 0:
+        context["calendar_source_count"] = source_count
+
+    error_count = _to_int(payload.get("error_count"))
+    errors = payload.get("errors")
+    if error_count is not None and error_count >= 0:
+        context["calendar_error_count"] = error_count
+    elif isinstance(errors, list):
+        context["calendar_error_count"] = len(errors)
+
+    events_data = payload.get("events")
+    if not isinstance(events_data, list):
+        return context
+
+    event_rows: list[dict[str, Any]] = []
+    for item in events_data[:8]:
+        if not isinstance(item, dict):
+            continue
+
+        title = item.get("title")
+        if not isinstance(title, str) or not title.strip():
+            continue
+
+        source = item.get("source")
+        source_label = source.strip() if isinstance(source, str) and source.strip() else None
+        start_dt = _parse_iso_datetime(item.get("start_dt"))
+        end_dt = _parse_iso_datetime(item.get("end_dt"))
+        all_day = bool(item.get("all_day"))
+        time_label = _format_calendar_time_label(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            all_day=all_day,
+            timezone_value=settings.timezone,
+        )
+        event_rows.append(
+            {
+                "title": title.strip(),
+                "display_title": title.strip()
+                if settings.yaml.calendar.display.show_title
+                else "Busy",
+                "source": source_label,
+                "time_label": time_label,
+            }
+        )
+
+    context["calendar_events"] = event_rows
+    context["calendar_available"] = len(event_rows) > 0
+    context["calendar_event_count"] = _to_int(payload.get("count")) or len(event_rows)
+    return context
+
+
+def _build_calendar_modal_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "modal_calendar_available": False,
+        "modal_calendar_events": [],
+        "modal_calendar_event_count": 0,
+        "modal_calendar_updated_at": None,
+        "modal_calendar_target_date": None,
+        "modal_calendar_is_stale": True,
+        "modal_calendar_source_count": len(settings.yaml.calendar.sources),
+        "modal_calendar_error_messages": [],
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, CALENDAR_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    context["modal_calendar_is_stale"] = cache_entry.is_stale()
+    context["modal_calendar_updated_at"] = _format_local_refresh(payload.get("refreshed_at_utc"), settings)
+
+    target_date = payload.get("target_date")
+    if isinstance(target_date, str) and target_date.strip():
+        context["modal_calendar_target_date"] = target_date.strip()
+
+    source_count = _to_int(payload.get("source_count"))
+    if source_count is not None and source_count >= 0:
+        context["modal_calendar_source_count"] = source_count
+
+    errors = payload.get("errors")
+    if isinstance(errors, list):
+        error_messages = [
+            item.strip() for item in errors if isinstance(item, str) and item.strip()
+        ]
+        context["modal_calendar_error_messages"] = error_messages
+
+    events_data = payload.get("events")
+    if not isinstance(events_data, list):
+        return context
+
+    event_rows: list[dict[str, Any]] = []
+    for item in events_data:
+        if not isinstance(item, dict):
+            continue
+
+        title = item.get("title")
+        if not isinstance(title, str) or not title.strip():
+            continue
+
+        source = item.get("source")
+        source_label = source.strip() if isinstance(source, str) and source.strip() else "--"
+        start_dt = _parse_iso_datetime(item.get("start_dt"))
+        end_dt = _parse_iso_datetime(item.get("end_dt"))
+        all_day = bool(item.get("all_day"))
+
+        time_label = _format_calendar_time_label(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            all_day=all_day,
+            timezone_value=settings.timezone,
+        ) or "--"
+
+        if start_dt is not None:
+            local_start = start_dt.astimezone(settings.timezone)
+            start_display = local_start.strftime("%a, %b %d %H:%M")
+        else:
+            start_display = "--"
+
+        if end_dt is not None:
+            local_end = end_dt.astimezone(settings.timezone)
+            end_display = local_end.strftime("%a, %b %d %H:%M")
+        else:
+            end_display = "--"
+
+        event_rows.append(
+            {
+                "title": title.strip(),
+                "display_title": title.strip()
+                if settings.yaml.calendar.display.show_title
+                else "Busy",
+                "source": source_label,
+                "time_label": time_label,
+                "start_display": start_display,
+                "end_display": end_display,
+            }
+        )
+
+    context["modal_calendar_events"] = event_rows
+    context["modal_calendar_available"] = len(event_rows) > 0
+    context["modal_calendar_event_count"] = _to_int(payload.get("count")) or len(event_rows)
+    return context
+
+
 def _component_response(request: Request, widget_name: str) -> HTMLResponse:
     settings = _get_settings(request)
     template_name = COMPONENT_TEMPLATES[widget_name]
@@ -357,6 +561,7 @@ async def lifespan(application: FastAPI):
     settings = load_settings()
     initialize_database(settings.db_path)
     run_dummy_refresh_job(settings)
+    run_calendar_refresh_job(settings)
     run_weather_refresh_job(settings)
     run_photos_refresh_job(settings)
     scheduler = build_scheduler(settings)
@@ -391,6 +596,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
     if isinstance(dummy_refresh, dict):
         refresh_display = _format_local_refresh(dummy_refresh.get("refreshed_at_utc"), settings)
 
+    calendar_context = _build_calendar_tile_context(settings)
     weather_context = _build_weather_tile_context(settings)
     photo_context = _build_photo_tile_context(settings)
 
@@ -408,6 +614,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
             "timezone_name": settings.env.dashboard_timezone,
             "dummy_refresh_display": refresh_display,
             "scheduler_running": request.app.state.scheduler.running,
+            **calendar_context,
             **weather_context,
             **photo_context,
         },
@@ -418,6 +625,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
 async def health(request: Request) -> JSONResponse:
     settings = _get_settings(request)
     dummy_entry = get_cache_entry(settings.db_path, DUMMY_REFRESH_CACHE_KEY)
+    calendar_entry = get_cache_entry(settings.db_path, CALENDAR_REFRESH_CACHE_KEY)
     weather_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
     photos_entry = get_cache_entry(settings.db_path, PHOTOS_REFRESH_CACHE_KEY)
 
@@ -429,6 +637,7 @@ async def health(request: Request) -> JSONResponse:
             "timezone": settings.env.dashboard_timezone,
             "scheduler_running": request.app.state.scheduler.running,
             "dummy_refresh": dummy_entry.payload if dummy_entry else None,
+            "calendar_refresh": calendar_entry.payload if calendar_entry else None,
             "weather_refresh": weather_entry.payload if weather_entry else None,
             "photos_refresh": photos_entry.payload if photos_entry else None,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -438,7 +647,16 @@ async def health(request: Request) -> JSONResponse:
 
 @app.get("/partials/calendar", response_class=HTMLResponse)
 async def partial_calendar(request: Request) -> HTMLResponse:
-    return _component_response(request, "calendar")
+    settings = _get_settings(request)
+    calendar_context = _build_calendar_tile_context(settings)
+    return templates.TemplateResponse(
+        "components/tile_calendar.html",
+        {
+            "request": request,
+            "updated_at": _updated_at(settings.timezone),
+            **calendar_context,
+        },
+    )
 
 
 @app.get("/partials/weather", response_class=HTMLResponse)
@@ -536,6 +754,10 @@ async def modal(request: Request, widget_name: str) -> HTMLResponse:
     if widget_name == "weather":
         weather_modal_context = _build_weather_modal_context(settings)
 
+    calendar_modal_context: dict[str, Any] = {}
+    if widget_name == "calendar":
+        calendar_modal_context = _build_calendar_modal_context(settings)
+
     return templates.TemplateResponse(
         "components/modal.html",
         {
@@ -543,9 +765,11 @@ async def modal(request: Request, widget_name: str) -> HTMLResponse:
             "widget_name": widget_name,
             "widget_title": widget_title,
             "is_weather_widget": widget_name == "weather",
+            "is_calendar_widget": widget_name == "calendar",
             "updated_at": _updated_at(settings.timezone),
             "cache_key": cache_key,
             "cached_payload_preview": payload_preview,
             **weather_modal_context,
+            **calendar_modal_context,
         },
     )

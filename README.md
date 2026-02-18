@@ -1,4 +1,4 @@
-# Raspberry Pi Dashboard (Steps 1-8 Baseline)
+# Raspberry Pi Dashboard (Steps 1-9 Baseline)
 
 Local-first dashboard app built with FastAPI + Jinja templates.
 
@@ -12,6 +12,7 @@ This repository currently includes:
 - Weather refresh job using Open-Meteo with IP-based auto location + fallback city
 - Weather tile rendering current conditions and daily forecast from cache
 - Local photos adapter (folder scan) with cached index, photo tile rendering, and client-side slide rotation
+- Calendar adapter (ICS file + URL sources) with cached today-events and calendar tile rendering
 
 ## Quick Start (Windows / PowerShell)
 
@@ -51,9 +52,46 @@ Health check:
 - Static assets: `src/dashboard/web/static/`
 - Config stub: `config/dashboard.yaml`
 
+## Calendar (ICS) Setup
+
+Add one or more ICS sources in `config/dashboard.yaml`:
+
+```yaml
+calendar:
+  sources:
+    - type: "ics"
+      path: "config/personal.ics"
+      name: "Personal"
+    - type: "ics_url"
+      url: "https://pXX-caldav.icloud.com/published/2/abc123.../calendar.ics"
+      name: "Apple (Read-Only)"
+  display:
+    range: "today"
+    show_time: true
+    show_title: true
+```
+
+Notes:
+- `path` is resolved from the project root when relative.
+- `url` must be an absolute `http` or `https` address.
+- `webcal://...` links are accepted and normalized to `https://...`.
+- Apple iCloud "Public Calendar" links work with `type: "ics_url"`.
+- The dashboard currently renders events overlapping the local "today" range.
+
+### Keep URL Private
+
+If your calendar URL should not be committed:
+
+1. Create `.env` from `.env.example` (already gitignored) and set:
+   `DASHBOARD_CONFIG_PATH=config/dashboard.local.yaml`
+2. Create `config/dashboard.local.yaml` with your private `ics_url` sources.
+3. Keep `config/dashboard.yaml` free of secrets.
+
+`config/*.local.yaml` is ignored by git in this repo.
+
 ## Current Status
 
-Steps 1-8 from `project.md` are implemented:
+Steps 1-9 from `project.md` are implemented:
 1. FastAPI skeleton + templates + static assets
 2. Settings loader (`.env` + YAML) and validation
 3. SQLite cache table + helper functions
@@ -62,3 +100,4 @@ Steps 1-8 from `project.md` are implemented:
 6. Modal component + click-to-expand behavior
 7. Weather adapter (Open-Meteo first) + tile
 8. Local photos adapter + tile + rotation
+9. Calendar adapter (ICS first) + tile

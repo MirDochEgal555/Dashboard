@@ -10,6 +10,12 @@ refresh:
 location:
   mode: "auto"
   fallback_city: "Stuttgart, DE"
+calendar:
+  sources: []
+  display:
+    range: "today"
+    show_time: true
+    show_title: true
 weather:
   provider: "open_meteo"
   units: "metric"

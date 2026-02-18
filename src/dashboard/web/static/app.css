@@ -208,6 +208,60 @@ body {
   text-align: right;
 }
 
+.calendar-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.46rem;
+}
+
+.calendar-event-item {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid rgba(121, 182, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(4, 10, 19, 0.32);
+  padding: 0.48rem 0.58rem;
+}
+
+.calendar-event-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.calendar-event-time {
+  color: var(--accent-2);
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.calendar-event-title {
+  color: #e6f1ff;
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-event-source {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex: 0 0 auto;
+}
+
+.calendar-note {
+  margin: 0.55rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.77rem;
+}
+
 .placeholder-list {
   margin: 0;
   padding-left: 1.1rem;
@@ -428,6 +482,67 @@ body {
   text-align: right;
 }
 
+.modal-calendar-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0 0 0.8rem;
+}
+
+.modal-calendar-meta-grid div {
+  border: 1px solid rgba(121, 182, 255, 0.16);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(4, 10, 19, 0.35);
+}
+
+.modal-calendar-meta-grid dt {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.modal-calendar-meta-grid dd {
+  margin: 0.16rem 0 0;
+  color: #d8e8ff;
+  font-size: 0.88rem;
+}
+
+.modal-calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(121, 182, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.82rem;
+}
+
+.modal-calendar-table th,
+.modal-calendar-table td {
+  padding: 0.48rem 0.58rem;
+  border-bottom: 1px solid rgba(121, 182, 255, 0.14);
+  text-align: left;
+}
+
+.modal-calendar-table th {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  background: rgba(4, 10, 19, 0.52);
+}
+
+.modal-calendar-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.modal-calendar-errors {
+  margin: 0.78rem 0 0;
+  padding-left: 1.05rem;
+  color: #ffd8d8;
+  font-size: 0.8rem;
+}
+
 .modal-raw-details {
   margin-top: 0.75rem;
 }
@@ -486,6 +601,10 @@ body {
   }
 
   .modal-weather-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-calendar-meta-grid {
     grid-template-columns: 1fr;
   }
 }
