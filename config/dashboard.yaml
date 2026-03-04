@@ -20,6 +20,15 @@ weather:
   provider: "open_meteo"
   units: "metric"
   show_daily_days: 5
+transit:
+  provider: "transport_rest"
+  stop_name: "Alexanderplatz"
+  stop_id: "900100003"
+  horizon_minutes: 60
+  max_departures: 8
+  transport_rest_base_url: "https://v6.vbb.transport.rest"
+  transport_rest_fallback_base_urls:
+    - "https://v6.db.transport.rest"
 photos:
   folder: "photos"
   extensions:

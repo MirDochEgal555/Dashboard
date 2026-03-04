@@ -43,7 +43,15 @@
 
   <main class="right-column">
     <div class="rotation-controls" aria-label="Right panel controls">
-      <button class="rotation-skip-button" type="button" data-rotate-next>Next Panel</button>
+      <button
+        class="rotation-skip-button"
+        type="button"
+        data-rotate-next
+        aria-label="Next Panel"
+        title="Next Panel"
+      >
+        &gt;
+      </button>
     </div>
     <section class="rotating-panel is-active" data-widget="transit">
       {% include "components/tile_transit.html" %}

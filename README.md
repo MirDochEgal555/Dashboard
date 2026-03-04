@@ -1,4 +1,4 @@
-# Raspberry Pi Dashboard (Steps 1-9 Baseline)
+# Raspberry Pi Dashboard (Steps 1-10 Baseline)
 
 Local-first dashboard app built with FastAPI + Jinja templates.
 
@@ -13,6 +13,7 @@ This repository currently includes:
 - Weather tile rendering current conditions and daily forecast from cache
 - Local photos adapter (folder scan) with cached index, photo tile rendering, and client-side slide rotation
 - Calendar adapter (ICS file + URL sources) with cached today-events and calendar tile rendering
+- Transit adapter (`transport.rest`) with cached departures and transit tile rendering
 
 ## Quick Start (Windows / PowerShell)
 
@@ -89,9 +90,32 @@ If your calendar URL should not be committed:
 
 `config/*.local.yaml` is ignored by git in this repo.
 
+## Transit Setup
+
+Configure the German transit stop in `config/dashboard.yaml`:
+
+```yaml
+transit:
+  provider: "transport_rest"
+  stop_name: "Alexanderplatz"
+  stop_id: "900100003"
+  horizon_minutes: 60
+  max_departures: 8
+  transport_rest_base_url: "https://v6.vbb.transport.rest"
+  transport_rest_fallback_base_urls:
+    - "https://v6.db.transport.rest"
+```
+
+Notes:
+- `stop_name` is used for stop lookup when `stop_id` is empty.
+- Set `stop_id` if you want to avoid stop lookup on each refresh.
+- `horizon_minutes` controls how far ahead departures are requested.
+- `transport_rest_fallback_base_urls` is optional and should only include compatible network endpoints.
+- If the provider is temporarily unavailable, the dashboard keeps showing the last cached departures.
+
 ## Current Status
 
-Steps 1-9 from `project.md` are implemented:
+Steps 1-10 from `project.md` are implemented:
 1. FastAPI skeleton + templates + static assets
 2. Settings loader (`.env` + YAML) and validation
 3. SQLite cache table + helper functions
@@ -101,3 +125,4 @@ Steps 1-9 from `project.md` are implemented:
 7. Weather adapter (Open-Meteo first) + tile
 8. Local photos adapter + tile + rotation
 9. Calendar adapter (ICS first) + tile
+10. Transit adapter for German stop + tile

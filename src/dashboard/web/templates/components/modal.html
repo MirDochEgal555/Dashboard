@@ -118,6 +118,81 @@
         {% endfor %}
       </ul>
       {% endif %}
+      {% elif is_transit_widget %}
+      {% if modal_transit_available %}
+      <dl class="modal-transit-meta-grid">
+        <div>
+          <dt>Stop</dt>
+          <dd>{{ modal_transit_stop_name }}</dd>
+        </div>
+        <div>
+          <dt>Departures</dt>
+          <dd>{{ modal_transit_departure_count }}</dd>
+        </div>
+        <div>
+          <dt>Horizon</dt>
+          <dd>{{ modal_transit_horizon_minutes }} min</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_transit_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>Provider</dt>
+          <dd>{{ modal_transit_provider_label }}</dd>
+        </div>
+        <div>
+          <dt>Stop ID</dt>
+          <dd>{{ modal_transit_stop_id or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_transit_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+
+      <table class="modal-transit-table">
+        <thead>
+          <tr>
+            <th scope="col">Line</th>
+            <th scope="col">Destination</th>
+            <th scope="col">Planned</th>
+            <th scope="col">Realtime</th>
+            <th scope="col">Platform</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for departure in modal_transit_departures %}
+          <tr>
+            <td>{{ departure.line }}</td>
+            <td>{{ departure.destination }}</td>
+            <td{% if departure.is_cancelled %} class="is-cancelled-time"{% endif %}>{{ departure.planned_display }}</td>
+            <td{% if departure.is_cancelled %} class="is-cancelled-time"{% endif %}>{{ departure.realtime_display }}</td>
+            <td>{{ departure.platform }}</td>
+            <td>
+              {{ departure.status }}
+              {% if departure.is_cancelled %}
+              <span class="modal-transit-cancelled">Cancelled</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if modal_transit_has_error %}
+      <p class="modal-transit-note">
+        Live refresh failed; showing cached departures{% if modal_transit_error_at %} (last error {{ modal_transit_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="empty-state">No transit departures cached yet.</p>
+      {% if modal_transit_has_error %}
+      <p class="modal-transit-note">
+        Transit provider is currently unavailable{% if modal_transit_error_at %} (last error {{ modal_transit_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% endif %}
       {% else %}
       <p>Expanded view for <strong>{{ widget_name }}</strong>.</p>
       {% if cached_payload_preview %}

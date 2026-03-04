@@ -1,13 +1,55 @@
-<section class="tile" id="tile-transit" hx-get="/partials/transit" hx-trigger="every 5m" hx-swap="outerHTML">
+<section class="tile" id="tile-transit" hx-get="/partials/transit" hx-trigger="every 2m" hx-swap="outerHTML">
   <header class="tile-header">
     <h2>Transit</h2>
     <button class="tile-action" type="button" data-open-modal="transit">Expand</button>
   </header>
   <div class="tile-body">
-    <ul class="placeholder-list">
-      <li>No departures loaded yet.</li>
+    {% if transit_stop_name %}
+    <p class="transit-stop-name">{{ transit_stop_name }}</p>
+    {% endif %}
+    {% if transit_available %}
+    <ul class="transit-departure-list">
+      {% for departure in transit_departures %}
+      <li class="transit-departure-item">
+        <div class="transit-departure-main">
+          <span class="transit-line">{{ departure.line }}</span>
+          <span class="transit-destination">{{ departure.destination }}</span>
+          {% if departure.status and not departure.is_cancelled %}
+          <span class="transit-status">{{ departure.status }}</span>
+          {% endif %}
+        </div>
+        <div class="transit-departure-meta">
+          <span class="transit-time{% if departure.is_cancelled %} is-cancelled{% endif %}">{{ departure.primary_time_display }}</span>
+          {% if departure.secondary_time_display %}
+          <span class="transit-time-secondary{% if departure.is_cancelled %} is-cancelled{% endif %}">{{ departure.secondary_time_display }}</span>
+          {% endif %}
+          {% if departure.is_cancelled %}
+          <span class="transit-cancelled">Cancelled</span>
+          {% endif %}
+          {% if departure.platform %}
+          <span class="transit-platform">Pl {{ departure.platform }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
     </ul>
+    {% if transit_has_error %}
+    <p class="transit-note">
+      Live refresh failed; showing cached departures{% if transit_error_at %} (last error {{ transit_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% else %}
+    <p class="empty-state">No departures in the next {{ transit_horizon_minutes }} minutes.</p>
+    {% if transit_has_error %}
+    <p class="transit-note">
+      Transit provider is currently unavailable{% if transit_error_at %} (last error {{ transit_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ transit_updated_at or updated_at or generated_at }}
+    {% if transit_available %} | {{ transit_departure_count }} departure{% if transit_departure_count != 1 %}s{% endif %}{% endif %}
+    {% if transit_is_stale and transit_available %}(stale){% endif %}
+  </footer>
 </section>
-

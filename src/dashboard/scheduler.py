@@ -7,19 +7,23 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from .adapters.calendar import CalendarAdapterError, IcsCalendarAdapter, RemoteIcsCalendarAdapter
 from .adapters.photos import LocalFolderPhotosAdapter, PhotosAdapterError
+from .adapters.transit import TransitAdapterError, TransportRestTransitAdapter
 from .adapters.weather import OpenMeteoWeatherAdapter, WeatherAdapterError
 from .domain.models import CalendarEvent
 from .location.service import LocationResolutionError, get_location
 from .settings import AppSettings
-from .storage.cache import set_cache_entry
+from .storage.cache import get_cache_entry, set_cache_entry
 
 LOGGER = logging.getLogger(__name__)
 
 DUMMY_REFRESH_CACHE_KEY = "system.dummy_refresh"
 CALENDAR_REFRESH_CACHE_KEY = "calendar.today"
 WEATHER_REFRESH_CACHE_KEY = "weather.snapshot"
+TRANSIT_REFRESH_CACHE_KEY = "transit.departures"
 PHOTOS_REFRESH_CACHE_KEY = "photos.index"
 PHOTOS_SCAN_INTERVAL_MINUTES = 60
+TRANSIT_MIN_REFRESH_INTERVAL_MINUTES = 2
+TRANSIT_MAX_REFRESH_INTERVAL_MINUTES = 5
 
 
 def run_dummy_refresh_job(settings: AppSettings) -> None:
@@ -47,6 +51,16 @@ def _build_weather_adapter(settings: AppSettings) -> OpenMeteoWeatherAdapter:
     return OpenMeteoWeatherAdapter(
         units=settings.yaml.weather.units,
         timezone_name=settings.env.dashboard_timezone,
+    )
+
+
+def _build_transit_adapter(settings: AppSettings) -> TransportRestTransitAdapter:
+    provider = settings.yaml.transit.provider
+    if provider != "transport_rest":
+        raise ValueError(f"Unsupported transit provider: {provider}")
+    return TransportRestTransitAdapter(
+        base_url=settings.yaml.transit.transport_rest_base_url,
+        fallback_base_urls=tuple(settings.yaml.transit.transport_rest_fallback_base_urls),
     )
 
 
@@ -181,6 +195,110 @@ def run_weather_refresh_job(settings: AppSettings) -> None:
     LOGGER.info("Weather refresh job updated '%s' at %s", WEATHER_REFRESH_CACHE_KEY, refreshed_at)
 
 
+def _transit_refresh_interval_minutes(settings: AppSettings) -> int:
+    return min(
+        TRANSIT_MAX_REFRESH_INTERVAL_MINUTES,
+        max(TRANSIT_MIN_REFRESH_INTERVAL_MINUTES, settings.yaml.refresh.interval_minutes),
+    )
+
+
+def _transit_ttl_seconds(settings: AppSettings) -> int:
+    return max(_transit_refresh_interval_minutes(settings) * 120, 180)
+
+
+def run_transit_refresh_job(settings: AppSettings) -> None:
+    refreshed_at = datetime.now(timezone.utc)
+    configured_stop_name = settings.yaml.transit.stop_name
+    configured_stop_id = settings.yaml.transit.stop_id
+    ttl_seconds = _transit_ttl_seconds(settings)
+
+    try:
+        adapter = _build_transit_adapter(settings)
+        resolved_stop_id = configured_stop_id
+        resolved_stop_name = configured_stop_name
+        if not resolved_stop_id:
+            resolved_stop_id, resolved_stop_name = adapter.resolve_stop(configured_stop_name)
+
+        departures = adapter.get_departures(
+            resolved_stop_id,
+            horizon_minutes=settings.yaml.transit.horizon_minutes,
+            limit=settings.yaml.transit.max_departures,
+        )
+    except (TransitAdapterError, ValueError) as exc:
+        existing_entry = get_cache_entry(settings.db_path, TRANSIT_REFRESH_CACHE_KEY)
+        existing_payload = existing_entry.payload if existing_entry and isinstance(existing_entry.payload, dict) else None
+
+        fallback_departures = []
+        fallback_stop_name = configured_stop_name
+        fallback_stop_id = configured_stop_id
+        if existing_payload is not None:
+            departures_payload = existing_payload.get("departures")
+            if isinstance(departures_payload, list):
+                fallback_departures = departures_payload
+            cached_stop_name = existing_payload.get("stop_name")
+            if isinstance(cached_stop_name, str) and cached_stop_name.strip():
+                fallback_stop_name = cached_stop_name.strip()
+            cached_stop_id = existing_payload.get("stop_id")
+            if isinstance(cached_stop_id, str) and cached_stop_id.strip():
+                fallback_stop_id = cached_stop_id.strip()
+
+        payload = {
+            "provider": settings.yaml.transit.provider,
+            "base_url": settings.yaml.transit.transport_rest_base_url,
+            "configured_stop_name": configured_stop_name,
+            "configured_stop_id": configured_stop_id,
+            "stop_name": fallback_stop_name,
+            "stop_id": fallback_stop_id,
+            "horizon_minutes": settings.yaml.transit.horizon_minutes,
+            "max_departures": settings.yaml.transit.max_departures,
+            "refreshed_at_utc": (
+                existing_payload.get("refreshed_at_utc")
+                if isinstance(existing_payload, dict)
+                else None
+            ),
+            "count": len(fallback_departures),
+            "departures": fallback_departures,
+            "last_error": str(exc),
+            "last_error_at_utc": refreshed_at.isoformat(),
+        }
+        set_cache_entry(
+            settings.db_path,
+            TRANSIT_REFRESH_CACHE_KEY,
+            payload,
+            ttl_seconds=ttl_seconds,
+            fetched_at=(existing_entry.fetched_at if existing_entry is not None else refreshed_at),
+        )
+        LOGGER.warning("Transit refresh failed; using cached data when available: %s", exc)
+        return
+    except Exception:  # pragma: no cover - defensive fallback
+        LOGGER.exception("Transit refresh job failed")
+        return
+
+    payload = {
+        "provider": settings.yaml.transit.provider,
+        "base_url": settings.yaml.transit.transport_rest_base_url,
+        "configured_stop_name": configured_stop_name,
+        "configured_stop_id": configured_stop_id,
+        "stop_name": resolved_stop_name,
+        "stop_id": resolved_stop_id,
+        "horizon_minutes": settings.yaml.transit.horizon_minutes,
+        "max_departures": settings.yaml.transit.max_departures,
+        "refreshed_at_utc": refreshed_at.isoformat(),
+        "count": len(departures),
+        "departures": [departure.model_dump(mode="json") for departure in departures],
+        "last_error": None,
+        "last_error_at_utc": None,
+    }
+    set_cache_entry(
+        settings.db_path,
+        TRANSIT_REFRESH_CACHE_KEY,
+        payload,
+        ttl_seconds=ttl_seconds,
+        fetched_at=refreshed_at,
+    )
+    LOGGER.info("Transit refresh job updated '%s' at %s", TRANSIT_REFRESH_CACHE_KEY, refreshed_at)
+
+
 def run_photos_refresh_job(settings: AppSettings) -> None:
     refreshed_at = datetime.now(timezone.utc)
     try:
@@ -248,6 +366,18 @@ def build_scheduler(settings: AppSettings) -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=120,
+    )
+    scheduler.add_job(
+        run_transit_refresh_job,
+        "interval",
+        kwargs={"settings": settings},
+        minutes=_transit_refresh_interval_minutes(settings),
+        jitter=settings.yaml.refresh.jitter_seconds,
+        id="transit_refresh_job",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=90,
     )
     scheduler.add_job(
         run_photos_refresh_job,

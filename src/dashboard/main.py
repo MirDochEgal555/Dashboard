@@ -16,11 +16,13 @@ from .scheduler import (
     CALENDAR_REFRESH_CACHE_KEY,
     DUMMY_REFRESH_CACHE_KEY,
     PHOTOS_REFRESH_CACHE_KEY,
+    TRANSIT_REFRESH_CACHE_KEY,
     WEATHER_REFRESH_CACHE_KEY,
     build_scheduler,
     run_calendar_refresh_job,
     run_dummy_refresh_job,
     run_photos_refresh_job,
+    run_transit_refresh_job,
     run_weather_refresh_job,
 )
 from .settings import AppSettings, load_settings
@@ -59,7 +61,7 @@ COMPONENT_TEMPLATES = {
 WIDGET_CACHE_KEYS = {
     "calendar": CALENDAR_REFRESH_CACHE_KEY,
     "weather": WEATHER_REFRESH_CACHE_KEY,
-    "transit": "transit.departures",
+    "transit": TRANSIT_REFRESH_CACHE_KEY,
     "news": "news.headlines",
     "finance": "finance.quotes",
     "sports": "sports.scores",
@@ -108,8 +110,9 @@ def _to_int(value: Any) -> int | None:
 def _parse_iso_datetime(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
+    normalized_value = value.replace("Z", "+00:00")
     try:
-        parsed = datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(normalized_value)
     except ValueError:
         return None
     if parsed.tzinfo is None:
@@ -158,6 +161,34 @@ def _format_day_label_long(raw_date: Any) -> str:
         return datetime.fromisoformat(raw_date).strftime("%a, %b %d")
     except ValueError:
         return raw_date
+
+
+def _clean_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _format_clock_time(value: datetime | None, timezone_value) -> str | None:
+    if value is None:
+        return None
+    return value.astimezone(timezone_value).strftime("%H:%M")
+
+
+def _same_local_minute(left: datetime | None, right: datetime | None, timezone_value) -> bool:
+    if left is None or right is None:
+        return False
+    left_value = left.astimezone(timezone_value).replace(second=0, microsecond=0)
+    right_value = right.astimezone(timezone_value).replace(second=0, microsecond=0)
+    return left_value == right_value
+
+
+def _is_cancelled_status(status: str | None) -> bool:
+    if status is None:
+        return False
+    normalized = status.casefold()
+    return "cancelled" in normalized or "canceled" in normalized
 
 
 def _normalize_photo_relative_path(raw_path: Any) -> str | None:
@@ -547,6 +578,167 @@ def _build_calendar_modal_context(settings: AppSettings) -> dict[str, Any]:
     return context
 
 
+def _build_transit_tile_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "transit_available": False,
+        "transit_departures": [],
+        "transit_departure_count": 0,
+        "transit_stop_name": settings.yaml.transit.stop_name,
+        "transit_horizon_minutes": settings.yaml.transit.horizon_minutes,
+        "transit_updated_at": None,
+        "transit_is_stale": True,
+        "transit_has_error": False,
+        "transit_error_at": None,
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, TRANSIT_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    context["transit_is_stale"] = cache_entry.is_stale()
+    context["transit_updated_at"] = _format_local_refresh(payload.get("refreshed_at_utc"), settings)
+    transit_error = _clean_text(payload.get("last_error"))
+    context["transit_has_error"] = transit_error is not None
+    context["transit_error_at"] = _format_local_refresh(payload.get("last_error_at_utc"), settings)
+
+    stop_name = _clean_text(payload.get("stop_name"))
+    if stop_name is not None:
+        context["transit_stop_name"] = stop_name
+
+    horizon_minutes = _to_int(payload.get("horizon_minutes"))
+    if horizon_minutes is not None and horizon_minutes > 0:
+        context["transit_horizon_minutes"] = horizon_minutes
+
+    departures_data = payload.get("departures")
+    if not isinstance(departures_data, list):
+        return context
+
+    rows: list[dict[str, Any]] = []
+    for item in departures_data[: settings.yaml.transit.max_departures]:
+        if not isinstance(item, dict):
+            continue
+
+        planned_dt = _parse_iso_datetime(item.get("planned_time"))
+        realtime_dt = _parse_iso_datetime(item.get("realtime_time"))
+        active_dt = realtime_dt or planned_dt
+        if active_dt is None:
+            continue
+
+        planned_display = _format_clock_time(planned_dt, settings.timezone)
+        primary_display = _format_clock_time(active_dt, settings.timezone) or "--"
+        secondary_display = None
+        if (
+            realtime_dt is not None
+            and planned_dt is not None
+            and not _same_local_minute(planned_dt, realtime_dt, settings.timezone)
+        ):
+            if planned_display is not None:
+                secondary_display = f"sched {planned_display}"
+        status_value = _clean_text(item.get("status"))
+
+        rows.append(
+            {
+                "line": _clean_text(item.get("line")) or "?",
+                "destination": _clean_text(item.get("destination")) or "Unknown destination",
+                "status": status_value,
+                "is_cancelled": _is_cancelled_status(status_value),
+                "platform": _clean_text(item.get("platform")),
+                "primary_time_display": primary_display,
+                "secondary_time_display": secondary_display,
+            }
+        )
+
+    context["transit_departures"] = rows
+    context["transit_available"] = len(rows) > 0
+    context["transit_departure_count"] = _to_int(payload.get("count")) or len(rows)
+    return context
+
+
+def _build_transit_modal_context(settings: AppSettings) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "modal_transit_available": False,
+        "modal_transit_departures": [],
+        "modal_transit_departure_count": 0,
+        "modal_transit_stop_name": settings.yaml.transit.stop_name,
+        "modal_transit_stop_id": settings.yaml.transit.stop_id,
+        "modal_transit_horizon_minutes": settings.yaml.transit.horizon_minutes,
+        "modal_transit_provider_label": "Transport Rest",
+        "modal_transit_updated_at": None,
+        "modal_transit_is_stale": True,
+        "modal_transit_has_error": False,
+        "modal_transit_error_at": None,
+    }
+
+    cache_entry = get_cache_entry(settings.db_path, TRANSIT_REFRESH_CACHE_KEY)
+    if cache_entry is None or not isinstance(cache_entry.payload, dict):
+        return context
+
+    payload = cache_entry.payload
+    context["modal_transit_is_stale"] = cache_entry.is_stale()
+    context["modal_transit_updated_at"] = _format_local_refresh(payload.get("refreshed_at_utc"), settings)
+    transit_error = _clean_text(payload.get("last_error"))
+    context["modal_transit_has_error"] = transit_error is not None
+    context["modal_transit_error_at"] = _format_local_refresh(payload.get("last_error_at_utc"), settings)
+
+    provider = _clean_text(payload.get("provider"))
+    if provider is not None:
+        context["modal_transit_provider_label"] = provider.replace("_", " ").title()
+
+    stop_name = _clean_text(payload.get("stop_name"))
+    if stop_name is not None:
+        context["modal_transit_stop_name"] = stop_name
+
+    stop_id = _clean_text(payload.get("stop_id"))
+    if stop_id is not None:
+        context["modal_transit_stop_id"] = stop_id
+
+    horizon_minutes = _to_int(payload.get("horizon_minutes"))
+    if horizon_minutes is not None and horizon_minutes > 0:
+        context["modal_transit_horizon_minutes"] = horizon_minutes
+
+    departures_data = payload.get("departures")
+    if not isinstance(departures_data, list):
+        return context
+
+    rows: list[dict[str, Any]] = []
+    for item in departures_data:
+        if not isinstance(item, dict):
+            continue
+
+        planned_dt = _parse_iso_datetime(item.get("planned_time"))
+        realtime_dt = _parse_iso_datetime(item.get("realtime_time"))
+        if planned_dt is None and realtime_dt is None:
+            continue
+
+        planned_display = _format_clock_time(planned_dt, settings.timezone) or "--"
+        realtime_display = _format_clock_time(realtime_dt, settings.timezone)
+        if realtime_dt is not None and planned_dt is not None and _same_local_minute(
+            planned_dt,
+            realtime_dt,
+            settings.timezone,
+        ):
+            realtime_display = None
+        status_value = _clean_text(item.get("status"))
+
+        rows.append(
+            {
+                "line": _clean_text(item.get("line")) or "?",
+                "destination": _clean_text(item.get("destination")) or "Unknown destination",
+                "planned_display": planned_display,
+                "realtime_display": realtime_display or "--",
+                "platform": _clean_text(item.get("platform")) or "--",
+                "status": status_value or "--",
+                "is_cancelled": _is_cancelled_status(status_value),
+            }
+        )
+
+    context["modal_transit_departures"] = rows
+    context["modal_transit_available"] = len(rows) > 0
+    context["modal_transit_departure_count"] = _to_int(payload.get("count")) or len(rows)
+    return context
+
+
 def _component_response(request: Request, widget_name: str) -> HTMLResponse:
     settings = _get_settings(request)
     template_name = COMPONENT_TEMPLATES[widget_name]
@@ -563,6 +755,7 @@ async def lifespan(application: FastAPI):
     run_dummy_refresh_job(settings)
     run_calendar_refresh_job(settings)
     run_weather_refresh_job(settings)
+    run_transit_refresh_job(settings)
     run_photos_refresh_job(settings)
     scheduler = build_scheduler(settings)
     scheduler.start()
@@ -598,6 +791,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
 
     calendar_context = _build_calendar_tile_context(settings)
     weather_context = _build_weather_tile_context(settings)
+    transit_context = _build_transit_tile_context(settings)
     photo_context = _build_photo_tile_context(settings)
 
     return templates.TemplateResponse(
@@ -616,6 +810,7 @@ async def dashboard_page(request: Request) -> HTMLResponse:
             "scheduler_running": request.app.state.scheduler.running,
             **calendar_context,
             **weather_context,
+            **transit_context,
             **photo_context,
         },
     )
@@ -627,6 +822,7 @@ async def health(request: Request) -> JSONResponse:
     dummy_entry = get_cache_entry(settings.db_path, DUMMY_REFRESH_CACHE_KEY)
     calendar_entry = get_cache_entry(settings.db_path, CALENDAR_REFRESH_CACHE_KEY)
     weather_entry = get_cache_entry(settings.db_path, WEATHER_REFRESH_CACHE_KEY)
+    transit_entry = get_cache_entry(settings.db_path, TRANSIT_REFRESH_CACHE_KEY)
     photos_entry = get_cache_entry(settings.db_path, PHOTOS_REFRESH_CACHE_KEY)
 
     return JSONResponse(
@@ -639,6 +835,7 @@ async def health(request: Request) -> JSONResponse:
             "dummy_refresh": dummy_entry.payload if dummy_entry else None,
             "calendar_refresh": calendar_entry.payload if calendar_entry else None,
             "weather_refresh": weather_entry.payload if weather_entry else None,
+            "transit_refresh": transit_entry.payload if transit_entry else None,
             "photos_refresh": photos_entry.payload if photos_entry else None,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
@@ -675,7 +872,16 @@ async def partial_weather(request: Request) -> HTMLResponse:
 
 @app.get("/partials/transit", response_class=HTMLResponse)
 async def partial_transit(request: Request) -> HTMLResponse:
-    return _component_response(request, "transit")
+    settings = _get_settings(request)
+    transit_context = _build_transit_tile_context(settings)
+    return templates.TemplateResponse(
+        "components/tile_transit.html",
+        {
+            "request": request,
+            "updated_at": _updated_at(settings.timezone),
+            **transit_context,
+        },
+    )
 
 
 @app.get("/partials/news", response_class=HTMLResponse)
@@ -758,6 +964,10 @@ async def modal(request: Request, widget_name: str) -> HTMLResponse:
     if widget_name == "calendar":
         calendar_modal_context = _build_calendar_modal_context(settings)
 
+    transit_modal_context: dict[str, Any] = {}
+    if widget_name == "transit":
+        transit_modal_context = _build_transit_modal_context(settings)
+
     return templates.TemplateResponse(
         "components/modal.html",
         {
@@ -766,10 +976,12 @@ async def modal(request: Request, widget_name: str) -> HTMLResponse:
             "widget_title": widget_title,
             "is_weather_widget": widget_name == "weather",
             "is_calendar_widget": widget_name == "calendar",
+            "is_transit_widget": widget_name == "transit",
             "updated_at": _updated_at(settings.timezone),
             "cache_key": cache_key,
             "cached_payload_preview": payload_preview,
             **weather_modal_context,
             **calendar_modal_context,
+            **transit_modal_context,
         },
     )

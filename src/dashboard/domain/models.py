@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -46,6 +46,42 @@ class WeatherSnapshot(BaseModel):
     condition: str
     daily: list[DailyForecast] = Field(default_factory=list)
     updated_at: datetime
+
+
+class Departure(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    line: str
+    destination: str
+    planned_time: datetime
+    realtime_time: datetime | None = None
+    platform: str | None = None
+    status: str | None = None
+
+    @field_validator("line", "destination")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("departure text fields must not be empty")
+        return text
+
+    @field_validator("platform", "status")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @field_validator("planned_time", "realtime_time")
+    @classmethod
+    def normalize_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class PhotoItem(BaseModel):

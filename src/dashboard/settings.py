@@ -152,6 +152,61 @@ class WeatherSettings(BaseModel):
     show_daily_days: int = Field(default=5, ge=1, le=10)
 
 
+class TransitSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["transport_rest"] = "transport_rest"
+    stop_name: str = "Alexanderplatz"
+    stop_id: str | None = None
+    horizon_minutes: int = Field(default=60, ge=5, le=180)
+    max_departures: int = Field(default=8, ge=1, le=30)
+    transport_rest_base_url: str = "https://v6.vbb.transport.rest"
+    transport_rest_fallback_base_urls: list[str] = Field(default_factory=list)
+
+    @field_validator("stop_name")
+    @classmethod
+    def validate_stop_name(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("transit.stop_name must not be empty")
+        return text
+
+    @field_validator("stop_id")
+    @classmethod
+    def validate_stop_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @field_validator("transport_rest_base_url")
+    @classmethod
+    def validate_transport_rest_base_url(cls, value: str) -> str:
+        text = value.strip().rstrip("/")
+        parsed = urlparse(text)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("transit.transport_rest_base_url must be an absolute http(s) URL")
+        return text
+
+    @field_validator("transport_rest_fallback_base_urls")
+    @classmethod
+    def validate_transport_rest_fallback_base_urls(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, str):
+                raise ValueError("transit.transport_rest_fallback_base_urls entries must be strings")
+            text = raw_value.strip().rstrip("/")
+            if not text:
+                continue
+            parsed = urlparse(text)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                raise ValueError(
+                    "transit.transport_rest_fallback_base_urls entries must be absolute http(s) URLs"
+                )
+            normalized.append(text)
+        return list(dict.fromkeys(normalized))
+
+
 class PhotosSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -194,6 +249,7 @@ class DashboardYamlSettings(BaseModel):
     location: LocationSettings = Field(default_factory=LocationSettings)
     calendar: CalendarSettings = Field(default_factory=CalendarSettings)
     weather: WeatherSettings = Field(default_factory=WeatherSettings)
+    transit: TransitSettings = Field(default_factory=TransitSettings)
     photos: PhotosSettings = Field(default_factory=PhotosSettings)
 
 

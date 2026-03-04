@@ -55,22 +55,29 @@ body {
 }
 
 .rotation-controls {
-  position: absolute;
-  top: 0.72rem;
-  right: 0.72rem;
-  z-index: 5;
+  position: fixed;
+  top: 50vh;
+  right: 0;
+  transform: translate(40%, -50%);
+  z-index: 12;
 }
 
 .rotation-skip-button {
-  border: 1px solid rgba(98, 212, 255, 0.42);
+  border: 2px solid rgba(98, 212, 255, 0.58);
   border-radius: 999px;
   background: rgba(8, 20, 38, 0.74);
   color: var(--text-main);
-  padding: 0.35rem 0.75rem;
-  font-size: 0.77rem;
-  letter-spacing: 0.01em;
+  width: 3.15rem;
+  height: 3.15rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.7rem;
+  line-height: 1;
+  font-weight: 700;
   cursor: pointer;
   backdrop-filter: blur(2px);
+  box-shadow: 0 10px 24px rgba(4, 10, 19, 0.55);
 }
 
 .rotation-skip-button:hover {
@@ -260,6 +267,109 @@ body {
   margin: 0.55rem 0 0;
   color: var(--text-muted);
   font-size: 0.77rem;
+}
+
+.transit-stop-name {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.transit-departure-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.transit-departure-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+  border: 1px solid rgba(121, 182, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(4, 10, 19, 0.3);
+  padding: 0.48rem 0.58rem;
+}
+
+.transit-departure-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.transit-line {
+  font-size: 0.74rem;
+  color: var(--accent-2);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.transit-destination {
+  font-size: 0.85rem;
+  color: #e6f1ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transit-status {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.transit-departure-meta {
+  display: grid;
+  justify-items: end;
+  gap: 0.16rem;
+}
+
+.transit-time {
+  font-size: 1.02rem;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.transit-time.is-cancelled {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #ff9e9e;
+  color: #ff9e9e;
+}
+
+.transit-time-secondary {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.transit-time-secondary.is-cancelled {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #ff9e9e;
+  color: #ffbcbc;
+}
+
+.transit-cancelled {
+  font-size: 0.72rem;
+  color: #ffbcbc;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.transit-platform {
+  font-size: 0.72rem;
+  color: #d8e8ff;
+  border: 1px solid rgba(98, 212, 255, 0.28);
+  border-radius: 999px;
+  padding: 0.1rem 0.38rem;
+}
+
+.transit-note {
+  margin: 0.62rem 0 0;
+  color: #ffd8d8;
+  font-size: 0.78rem;
 }
 
 .placeholder-list {
@@ -543,6 +653,82 @@ body {
   font-size: 0.8rem;
 }
 
+.modal-transit-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0 0 0.8rem;
+}
+
+.modal-transit-meta-grid div {
+  border: 1px solid rgba(121, 182, 255, 0.16);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(4, 10, 19, 0.35);
+}
+
+.modal-transit-meta-grid dt {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.modal-transit-meta-grid dd {
+  margin: 0.16rem 0 0;
+  color: #d8e8ff;
+  font-size: 0.88rem;
+}
+
+.modal-transit-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(121, 182, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.82rem;
+}
+
+.modal-transit-table th,
+.modal-transit-table td {
+  padding: 0.48rem 0.58rem;
+  border-bottom: 1px solid rgba(121, 182, 255, 0.14);
+  text-align: left;
+}
+
+.modal-transit-table th {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  background: rgba(4, 10, 19, 0.52);
+}
+
+.modal-transit-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.modal-transit-table td.is-cancelled-time {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #ff9e9e;
+  color: #ffbcbc;
+}
+
+.modal-transit-cancelled {
+  display: block;
+  margin-top: 0.15rem;
+  color: #ffbcbc;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.modal-transit-note {
+  margin: 0.72rem 0 0;
+  color: #ffd8d8;
+  font-size: 0.82rem;
+}
+
 .modal-raw-details {
   margin-top: 0.75rem;
 }
@@ -605,6 +791,10 @@ body {
   }
 
   .modal-calendar-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-transit-meta-grid {
     grid-template-columns: 1fr;
   }
 }
