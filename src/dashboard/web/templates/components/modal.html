@@ -193,6 +193,251 @@
       </p>
       {% endif %}
       {% endif %}
+      {% elif is_news_widget %}
+      {% if modal_news_available %}
+      <dl class="modal-news-meta-grid">
+        <div>
+          <dt>Headlines</dt>
+          <dd>{{ modal_news_headline_count }}</dd>
+        </div>
+        <div>
+          <dt>Feeds</dt>
+          <dd>{{ modal_news_feed_count }}</dd>
+        </div>
+        <div>
+          <dt>Provider</dt>
+          <dd>{{ modal_news_provider_label }}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_news_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_news_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+
+      <ul class="modal-news-list">
+        {% for headline in modal_news_headlines %}
+        <li class="modal-news-item">
+          <a
+            class="modal-news-link"
+            href="{{ headline.url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{ headline.title }}
+          </a>
+          <p class="modal-news-item-meta">
+            <span>{{ headline.source }}</span>
+            {% if headline.published_label %}
+            <span>{{ headline.published_label }}</span>
+            {% endif %}
+          </p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty-state">No news headlines cached yet.</p>
+      {% endif %}
+      {% elif is_finance_widget %}
+      {% if modal_finance_available %}
+      <dl class="modal-finance-meta-grid">
+        <div>
+          <dt>Quotes</dt>
+          <dd>{{ modal_finance_quote_count }}</dd>
+        </div>
+        <div>
+          <dt>Stocks</dt>
+          <dd>{{ modal_finance_stocks_count }}</dd>
+        </div>
+        <div>
+          <dt>Crypto</dt>
+          <dd>{{ modal_finance_crypto_count }}</dd>
+        </div>
+        <div>
+          <dt>Provider</dt>
+          <dd>{{ modal_finance_provider_label }}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_finance_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_finance_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+
+      <table class="modal-finance-table">
+        <thead>
+          <tr>
+            <th scope="col">Instrument</th>
+            <th scope="col">Symbol</th>
+            <th scope="col">Price</th>
+            <th scope="col">Change</th>
+            <th scope="col">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for quote in modal_finance_quotes %}
+          <tr>
+            <td>{{ quote.display_name }}</td>
+            <td>{{ quote.symbol }}</td>
+            <td>{{ quote.price_display }}</td>
+            <td class="is-{{ quote.change_direction }}">
+              {{ quote.change_display }}
+              {% if quote.change_label %}
+              <span class="finance-change-label">{{ quote.change_label }}</span>
+              {% endif %}
+            </td>
+            <td>{{ quote.updated_label }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="modal-finance-legend">
+        Rows marked <span class="finance-change-label">24h</span> use previous-close change.
+      </p>
+      {% if modal_finance_has_error %}
+      <p class="modal-finance-note">
+        Live refresh failed; showing cached quotes{% if modal_finance_error_at %} (last error {{ modal_finance_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="empty-state">No finance quotes cached yet.</p>
+      {% if modal_finance_has_error %}
+      <p class="modal-finance-note">
+        Finance provider is currently unavailable{% if modal_finance_error_at %} (last error {{ modal_finance_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% endif %}
+      {% elif is_sports_widget %}
+      {% if modal_sports_available %}
+      <dl class="modal-sports-meta-grid">
+        <div>
+          <dt>Matches</dt>
+          <dd>{{ modal_sports_score_count }}</dd>
+        </div>
+        <div>
+          <dt>Leagues</dt>
+          <dd>{{ modal_sports_league_count }}</dd>
+        </div>
+        <div>
+          <dt>Provider</dt>
+          <dd>{{ modal_sports_provider_label }}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_sports_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_sports_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+
+      <table class="modal-sports-table">
+        <thead>
+          <tr>
+            <th scope="col">League</th>
+            <th scope="col">Match</th>
+            <th scope="col">Score</th>
+            <th scope="col">Status</th>
+            <th scope="col">Start</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in modal_sports_scores %}
+          <tr>
+            <td>{{ result.league }}</td>
+            <td>{{ result.home }} vs {{ result.away }}</td>
+            <td>{{ result.score_display }}</td>
+            <td class="is-{{ result.status_class }}">{{ result.status }}</td>
+            <td>{{ result.start_label }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if modal_sports_has_error %}
+      <p class="modal-sports-note">
+        Live refresh failed; showing cached scores{% if modal_sports_error_at %} (last error {{ modal_sports_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="empty-state">No sports scores cached yet.</p>
+      {% if modal_sports_has_error %}
+      <p class="modal-sports-note">
+        Sports provider is currently unavailable{% if modal_sports_error_at %} (last error {{ modal_sports_error_at }}){% endif %}.
+      </p>
+      {% endif %}
+      {% endif %}
+      {% elif is_quote_widget %}
+      {% if modal_quote_available %}
+      <section class="modal-quote-summary">
+        <blockquote class="modal-quote-card">
+          <p class="modal-quote-text">"{{ modal_quote_text }}"</p>
+          <footer class="modal-quote-attribution">
+            — {{ modal_quote_author or "Unknown" }}
+            {% if modal_quote_source %}
+            <span class="modal-quote-source">({{ modal_quote_source }})</span>
+            {% endif %}
+          </footer>
+        </blockquote>
+      </section>
+      {% else %}
+      <p class="empty-state">No quote cached yet.</p>
+      {% endif %}
+
+      {% if modal_quote_on_this_day %}
+      <dl class="modal-quote-meta-grid">
+        <div>
+          <dt>On this day items</dt>
+          <dd>{{ modal_quote_on_this_day_count }}</dd>
+        </div>
+        <div>
+          <dt>Provider</dt>
+          <dd>{{ modal_quote_on_this_day_provider_label }}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{{ modal_quote_updated_at or "--" }}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>{% if modal_quote_is_stale %}Stale{% else %}Fresh{% endif %}</dd>
+        </div>
+      </dl>
+
+      <ul class="modal-quote-on-this-day-list">
+        {% for item in modal_quote_on_this_day %}
+        <li class="modal-quote-on-this-day-item">
+          <span class="modal-quote-on-this-day-year">{{ item.year_label }}</span>
+          <span class="modal-quote-on-this-day-text">
+            {{ item.text }}
+            {% if item.url %}
+            <a
+              class="modal-quote-on-this-day-link"
+              href="{{ item.url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              source
+            </a>
+            {% elif item.source %}
+            <span class="modal-quote-on-this-day-source">{{ item.source }}</span>
+            {% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if modal_quote_has_error %}
+      <p class="modal-quote-note">
+        Live refresh failed; showing cached data{% if modal_quote_error_at %} (last error {{ modal_quote_error_at }}){% endif %}.
+      </p>
+      {% endif %}
       {% else %}
       <p>Expanded view for <strong>{{ widget_name }}</strong>.</p>
       {% if cached_payload_preview %}

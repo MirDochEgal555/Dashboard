@@ -207,6 +207,148 @@ class TransitSettings(BaseModel):
         return list(dict.fromkeys(normalized))
 
 
+class NewsSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["rss"] = "rss"
+    feeds: list[str] = Field(
+        default_factory=lambda: [
+            "https://www.tagesschau.de/xml/rss2",
+            "https://www.spiegel.de/international/index.rss",
+        ]
+    )
+    max_items: int = Field(default=8, ge=1, le=30)
+
+    @field_validator("feeds")
+    @classmethod
+    def validate_feeds(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, str):
+                raise ValueError("news.feeds entries must be strings")
+            text = raw_value.strip()
+            if not text:
+                continue
+            parsed = urlparse(text)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                raise ValueError("news.feeds entries must be absolute http(s) URLs")
+            normalized.append(text)
+        return list(dict.fromkeys(normalized))
+
+
+class FinanceSymbolsSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    stocks: list[str] = Field(default_factory=lambda: ["AAPL", "MSFT"])
+    crypto: list[str] = Field(default_factory=lambda: ["bitcoin", "ethereum"])
+
+    @field_validator("stocks")
+    @classmethod
+    def validate_stocks(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, str):
+                raise ValueError("finance.symbols.stocks entries must be strings")
+            text = raw_value.strip().upper()
+            if not text:
+                continue
+            if " " in text:
+                raise ValueError("finance.symbols.stocks entries must not contain spaces")
+            normalized.append(text)
+        return list(dict.fromkeys(normalized))
+
+    @field_validator("crypto")
+    @classmethod
+    def validate_crypto(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, str):
+                raise ValueError("finance.symbols.crypto entries must be strings")
+            text = raw_value.strip().lower()
+            if not text:
+                continue
+            if " " in text:
+                raise ValueError("finance.symbols.crypto entries must not contain spaces")
+            normalized.append(text)
+        return list(dict.fromkeys(normalized))
+
+    @model_validator(mode="after")
+    def validate_non_empty(self) -> FinanceSymbolsSettings:
+        if not self.stocks and not self.crypto:
+            raise ValueError("finance.symbols must contain at least one stock or crypto symbol")
+        return self
+
+
+class FinanceSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["stooq_coingecko"] = "stooq_coingecko"
+    symbols: FinanceSymbolsSettings = Field(default_factory=FinanceSymbolsSettings)
+    max_items: int = Field(default=8, ge=1, le=30)
+    aliases: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("aliases")
+    @classmethod
+    def validate_aliases(cls, values: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for raw_key, raw_value in values.items():
+            if not isinstance(raw_key, str):
+                raise ValueError("finance.aliases keys must be strings")
+            if not isinstance(raw_value, str):
+                raise ValueError("finance.aliases values must be strings")
+
+            key = raw_key.strip()
+            value = raw_value.strip()
+            if not key:
+                raise ValueError("finance.aliases keys must not be empty")
+            if not value:
+                raise ValueError("finance.aliases values must not be empty")
+            normalized[key] = value
+        return normalized
+
+
+class SportsSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["thesportsdb"] = "thesportsdb"
+    sport: str = "Soccer"
+    leagues: list[str] = Field(default_factory=lambda: ["Bundesliga"])
+    max_items: int = Field(default=6, ge=1, le=30)
+
+    @field_validator("sport")
+    @classmethod
+    def validate_sport(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("sports.sport must not be empty")
+        return text
+
+    @field_validator("leagues")
+    @classmethod
+    def validate_leagues(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, str):
+                raise ValueError("sports.leagues entries must be strings")
+            text = raw_value.strip()
+            if not text:
+                continue
+            normalized.append(text)
+
+        deduplicated = list(dict.fromkeys(normalized))
+        if not deduplicated:
+            raise ValueError("sports.leagues must contain at least one league")
+        return deduplicated
+
+
+class QuotesSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["quotable"] = "quotable"
+    on_this_day_provider: Literal["wikipedia"] = "wikipedia"
+    max_on_this_day_items: int = Field(default=3, ge=1, le=15)
+
+
 class PhotosSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -250,6 +392,10 @@ class DashboardYamlSettings(BaseModel):
     calendar: CalendarSettings = Field(default_factory=CalendarSettings)
     weather: WeatherSettings = Field(default_factory=WeatherSettings)
     transit: TransitSettings = Field(default_factory=TransitSettings)
+    news: NewsSettings = Field(default_factory=NewsSettings)
+    finance: FinanceSettings = Field(default_factory=FinanceSettings)
+    sports: SportsSettings = Field(default_factory=SportsSettings)
+    quotes: QuotesSettings = Field(default_factory=QuotesSettings)
     photos: PhotosSettings = Field(default_factory=PhotosSettings)
 
 
@@ -265,6 +411,7 @@ class EnvSettings(BaseSettings):
     dashboard_timezone: str = "Europe/Berlin"
     dashboard_config_path: Path = Path("config/dashboard.yaml")
     dashboard_db_path: Path = Path("data/dashboard.db")
+    sports_api_key: str = "3"
 
     @field_validator("dashboard_timezone")
     @classmethod
@@ -274,6 +421,14 @@ class EnvSettings(BaseSettings):
         except ZoneInfoNotFoundError as exc:
             raise ValueError(f"Unknown timezone: {value}") from exc
         return value
+
+    @field_validator("sports_api_key")
+    @classmethod
+    def validate_sports_api_key(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("SPORTS_API_KEY must not be empty")
+        return text
 
 
 class AppSettings(BaseModel):

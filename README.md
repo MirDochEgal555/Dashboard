@@ -1,4 +1,4 @@
-# Raspberry Pi Dashboard (Steps 1-10 Baseline)
+# Raspberry Pi Dashboard (Steps 1-14 Baseline)
 
 Local-first dashboard app built with FastAPI + Jinja templates.
 
@@ -14,6 +14,10 @@ This repository currently includes:
 - Local photos adapter (folder scan) with cached index, photo tile rendering, and client-side slide rotation
 - Calendar adapter (ICS file + URL sources) with cached today-events and calendar tile rendering
 - Transit adapter (`transport.rest`) with cached departures and transit tile rendering
+- RSS news adapter with cached headlines, tile rendering, and expanded modal view
+- Finance adapter (`stooq + coingecko`) with cached quotes, tile rendering, and expanded modal view
+- Sports adapter (`thesportsdb`) with cached scores/fixtures, tile rendering, and expanded modal view
+- Quote + on-this-day adapters (`quotable` + `wikipedia`) with cached data, tile rendering, and expanded modal view
 
 ## Quick Start (Windows / PowerShell)
 
@@ -113,9 +117,90 @@ Notes:
 - `transport_rest_fallback_base_urls` is optional and should only include compatible network endpoints.
 - If the provider is temporarily unavailable, the dashboard keeps showing the last cached departures.
 
+## News (RSS) Setup
+
+Configure RSS feeds in `config/dashboard.yaml`:
+
+```yaml
+news:
+  provider: "rss"
+  feeds:
+    - "https://www.tagesschau.de/xml/rss2"
+    - "https://www.spiegel.de/international/index.rss"
+  max_items: 8
+```
+
+Notes:
+- `feeds` entries must be absolute `http` or `https` URLs.
+- Headlines are refreshed every 15 minutes and cached in SQLite.
+- Open headline links from the tile or modal (opens a new tab/window).
+
+## Finance Setup
+
+Configure stocks and crypto symbols in `config/dashboard.yaml`:
+
+```yaml
+finance:
+  provider: "stooq_coingecko"
+  symbols:
+    stocks:
+      - "AAPL"
+      - "MSFT"
+    crypto:
+      - "bitcoin"
+      - "ethereum"
+  max_items: 8
+```
+
+Notes:
+- Stocks are pulled from Stooq and crypto prices from CoinGecko (USD).
+- Finance refresh runs every 5-10 minutes (derived from global refresh interval).
+- If a provider fails, the dashboard keeps showing last cached quotes and marks them stale.
+
+## Sports Setup
+
+Configure sports leagues in `config/dashboard.yaml`:
+
+```yaml
+sports:
+  provider: "thesportsdb"
+  sport: "Soccer"
+  leagues:
+    - "Bundesliga"
+  max_items: 6
+```
+
+Optional `.env` key:
+
+```dotenv
+SPORTS_API_KEY=3
+```
+
+Notes:
+- `leagues` accepts names (for example `Bundesliga`) or explicit IDs via `id:<league_id>`.
+- Sports refresh runs every 5-10 minutes (derived from global refresh interval).
+- If the provider fails, the dashboard keeps showing last cached scores and marks them stale.
+
+## Quotes / On-This-Day Setup
+
+Configure quote and on-this-day providers in `config/dashboard.yaml`:
+
+```yaml
+quotes:
+  provider: "quotable"
+  on_this_day_provider: "wikipedia"
+  max_on_this_day_items: 3
+```
+
+Notes:
+- Quote refresh runs every 60 minutes.
+- The quote adapter tries Quotable first, then falls back to ZenQuotes if needed.
+- On-this-day entries are fetched from Wikipedia endpoints and cached with the quote payload.
+- If providers fail, the dashboard keeps showing last cached quote/on-this-day data and marks it stale.
+
 ## Current Status
 
-Steps 1-10 from `project.md` are implemented:
+Steps 1-14 from `project.md` are implemented:
 1. FastAPI skeleton + templates + static assets
 2. Settings loader (`.env` + YAML) and validation
 3. SQLite cache table + helper functions
@@ -126,3 +211,7 @@ Steps 1-10 from `project.md` are implemented:
 8. Local photos adapter + tile + rotation
 9. Calendar adapter (ICS first) + tile
 10. Transit adapter for German stop + tile
+11. RSS news adapter + tile
+12. Finance adapter + tile
+13. Sports adapter + tile
+14. Quotes / on-this-day adapter + tile

@@ -4,8 +4,40 @@
     <button class="tile-action" type="button" data-open-modal="quote">Expand</button>
   </header>
   <div class="tile-body">
-    <blockquote class="quote-placeholder">"No quote loaded yet."</blockquote>
-  </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
-</section>
+    {% if quote_text %}
+    <blockquote class="quote-card">
+      <p class="quote-text">"{{ quote_text }}"</p>
+      <footer class="quote-attribution">
+        — {{ quote_author or "Unknown" }}
+        {% if quote_source %}
+        <span class="quote-source">({{ quote_source }})</span>
+        {% endif %}
+      </footer>
+    </blockquote>
+    {% else %}
+    <p class="empty-state">No quote cached yet.</p>
+    {% endif %}
 
+    {% if quote_on_this_day %}
+    <ul class="quote-on-this-day-list">
+      {% for item in quote_on_this_day %}
+      <li class="quote-on-this-day-item">
+        <span class="quote-on-this-day-year">{{ item.year_label }}</span>
+        <span class="quote-on-this-day-text">{{ item.text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if quote_has_error %}
+    <p class="quote-note">
+      Live refresh failed; showing cached data{% if quote_error_at %} (last error {{ quote_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+  </div>
+  <footer class="tile-footer">
+    Updated {{ quote_updated_at or updated_at or generated_at }}
+    {% if quote_on_this_day_count %} | {{ quote_on_this_day_count }} on-this-day item{% if quote_on_this_day_count != 1 %}s{% endif %}{% endif %}
+    {% if quote_is_stale and quote_available %}(stale){% endif %}
+  </footer>
+</section>

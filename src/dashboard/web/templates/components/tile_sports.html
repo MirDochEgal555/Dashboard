@@ -4,10 +4,43 @@
     <button class="tile-action" type="button" data-open-modal="sports">Expand</button>
   </header>
   <div class="tile-body">
-    <ul class="placeholder-list">
-      <li>No scores loaded yet.</li>
+    {% if sports_available %}
+    <ul class="sports-score-list">
+      {% for result in sports_scores %}
+      <li class="sports-score-item">
+        <p class="sports-league">{{ result.league }}</p>
+        <p class="sports-match">{{ result.home }} vs {{ result.away }}</p>
+        <div class="sports-meta">
+          <span class="sports-score">{{ result.score_display }}</span>
+          <span class="sports-status is-{{ result.status_class }}">{{ result.status }}</span>
+          <span class="sports-time">{{ result.start_label }}</span>
+        </div>
+      </li>
+      {% endfor %}
     </ul>
+    {% if sports_has_error %}
+    <p class="sports-note">
+      Live refresh failed; showing cached scores{% if sports_error_at %} (last error {{ sports_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% else %}
+    <p class="empty-state">
+      {% if sports_league_count > 0 %}
+      No sports scores cached yet.
+      {% else %}
+      Add <code>sports.leagues</code> in <code>config/dashboard.yaml</code> to load scores.
+      {% endif %}
+    </p>
+    {% if sports_has_error %}
+    <p class="sports-note">
+      Sports provider is currently unavailable{% if sports_error_at %} (last error {{ sports_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ sports_updated_at or updated_at or generated_at }}
+    {% if sports_available %} | {{ sports_score_count }} match{% if sports_score_count != 1 %}es{% endif %}{% endif %}
+    {% if sports_is_stale and sports_available %}(stale){% endif %}
+  </footer>
 </section>
-

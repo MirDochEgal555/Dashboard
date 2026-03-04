@@ -4,10 +4,58 @@
     <button class="tile-action" type="button" data-open-modal="finance">Expand</button>
   </header>
   <div class="tile-body">
-    <ul class="placeholder-list">
-      <li>No market data loaded yet.</li>
+    {% if finance_available %}
+    <ul class="finance-quote-list">
+      {% for quote in finance_quotes %}
+      <li class="finance-quote-item">
+        <div class="finance-quote-main">
+          <span class="finance-label">{{ quote.display_name }}</span>
+          {% if quote.show_symbol %}
+          <span class="finance-symbol">{{ quote.symbol }}</span>
+          {% endif %}
+          <span class="finance-price">{{ quote.price_display }}</span>
+        </div>
+        <div class="finance-quote-meta">
+          {% if quote.change_display %}
+          <span class="finance-change is-{{ quote.change_direction }}">
+            {{ quote.change_display }}
+            {% if quote.change_label %}
+            <span class="finance-change-label">{{ quote.change_label }}</span>
+            {% endif %}
+          </span>
+          {% else %}
+          <span class="finance-change">--</span>
+          {% endif %}
+          {% if quote.updated_label %}
+          <span class="finance-updated">{{ quote.updated_label }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
     </ul>
+    {% if finance_has_error %}
+    <p class="finance-note">
+      Live refresh failed; showing cached quotes{% if finance_error_at %} (last error {{ finance_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% else %}
+    <p class="empty-state">
+      {% if finance_stocks_count > 0 or finance_crypto_count > 0 %}
+      No finance quotes cached yet.
+      {% else %}
+      Add <code>finance.symbols</code> in <code>config/dashboard.yaml</code> to load quotes.
+      {% endif %}
+    </p>
+    {% if finance_has_error %}
+    <p class="finance-note">
+      Finance provider is currently unavailable{% if finance_error_at %} (last error {{ finance_error_at }}){% endif %}.
+    </p>
+    {% endif %}
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ finance_updated_at or updated_at or generated_at }}
+    {% if finance_available %} | {{ finance_quote_count }} quote{% if finance_quote_count != 1 %}s{% endif %}{% endif %}
+    {% if finance_is_stale and finance_available %}(stale){% endif %}
+  </footer>
 </section>
-

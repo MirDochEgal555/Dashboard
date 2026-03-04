@@ -4,10 +4,41 @@
     <button class="tile-action" type="button" data-open-modal="news">Expand</button>
   </header>
   <div class="tile-body">
-    <ul class="placeholder-list">
-      <li>No headlines loaded yet.</li>
+    {% if news_available %}
+    <ul class="news-headline-list">
+      {% for headline in news_headlines %}
+      <li class="news-headline-item">
+        <a
+          class="news-headline-link"
+          href="{{ headline.url }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="{{ headline.title }}"
+        >
+          {{ headline.title }}
+        </a>
+        <div class="news-headline-meta">
+          <span class="news-headline-source">{{ headline.source }}</span>
+          {% if headline.published_label %}
+          <span class="news-headline-time">{{ headline.published_label }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
     </ul>
+    {% else %}
+    <p class="empty-state">
+      {% if news_feed_count > 0 %}
+      No headlines cached yet.
+      {% else %}
+      Add <code>news.feeds</code> in <code>config/dashboard.yaml</code> to load headlines.
+      {% endif %}
+    </p>
+    {% endif %}
   </div>
-  <footer class="tile-footer">Updated {{ updated_at or generated_at }}</footer>
+  <footer class="tile-footer">
+    Updated {{ news_updated_at or updated_at or generated_at }}
+    {% if news_available %} | {{ news_headline_count }} headline{% if news_headline_count != 1 %}s{% endif %}{% endif %}
+    {% if news_available and news_is_stale %}(stale){% endif %}
+  </footer>
 </section>
-

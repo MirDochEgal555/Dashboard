@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -82,6 +83,143 @@ class Departure(BaseModel):
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
+
+
+class Headline(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    title: str
+    source: str
+    url: str
+    published_at: datetime
+
+    @field_validator("title", "source")
+    @classmethod
+    def validate_non_empty_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("headline title/source must not be empty")
+        return text
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        text = value.strip()
+        parsed = urlparse(text)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("headline url must be an absolute http(s) URL")
+        return text
+
+    @field_validator("published_at")
+    @classmethod
+    def normalize_datetime(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class FinanceQuote(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    symbol: str
+    price: float
+    change: float | None = None
+    updated_at: datetime
+
+    @field_validator("symbol")
+    @classmethod
+    def validate_symbol(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("finance quote symbol must not be empty")
+        return text
+
+    @field_validator("updated_at")
+    @classmethod
+    def normalize_datetime(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class SportsResult(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    league: str
+    home: str
+    away: str
+    score: str
+    start_time: datetime
+    status: str
+
+    @field_validator("league", "home", "away", "score", "status")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("sports result text fields must not be empty")
+        return text
+
+    @field_validator("start_time")
+    @classmethod
+    def normalize_datetime(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class Quote(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    text: str
+    author: str
+    source: str
+
+    @field_validator("text", "author", "source")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("quote text fields must not be empty")
+        return text
+
+
+class OnThisDayItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    year: int | None = None
+    text: str
+    source: str | None = None
+    url: str | None = None
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("on-this-day text must not be empty")
+        return text
+
+    @field_validator("source")
+    @classmethod
+    def normalize_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        if not text:
+            return None
+        parsed = urlparse(text)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("on-this-day url must be an absolute http(s) URL")
+        return text
 
 
 class PhotoItem(BaseModel):

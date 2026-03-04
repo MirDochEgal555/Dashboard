@@ -1,3 +1,25 @@
-from .models import CalendarEvent, DailyForecast, Departure, PhotoItem, WeatherSnapshot
+from .models import (
+    CalendarEvent,
+    DailyForecast,
+    Departure,
+    FinanceQuote,
+    Headline,
+    OnThisDayItem,
+    PhotoItem,
+    Quote,
+    SportsResult,
+    WeatherSnapshot,
+)
 
-__all__ = ["CalendarEvent", "DailyForecast", "Departure", "PhotoItem", "WeatherSnapshot"]
+__all__ = [
+    "CalendarEvent",
+    "DailyForecast",
+    "Departure",
+    "FinanceQuote",
+    "Headline",
+    "OnThisDayItem",
+    "PhotoItem",
+    "Quote",
+    "SportsResult",
+    "WeatherSnapshot",
+]

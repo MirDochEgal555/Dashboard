@@ -29,6 +29,32 @@ transit:
   transport_rest_base_url: "https://v6.vbb.transport.rest"
   transport_rest_fallback_base_urls:
     - "https://v6.db.transport.rest"
+news:
+  provider: "rss"
+  feeds:
+    - "https://www.tagesschau.de/xml/rss2"
+    - "https://www.spiegel.de/international/index.rss"
+  max_items: 8
+finance:
+  provider: "stooq_coingecko"
+  symbols:
+    stocks:
+      - "AAPL"
+      - "MSFT"
+    crypto:
+      - "bitcoin"
+      - "ethereum"
+  max_items: 8
+sports:
+  provider: "thesportsdb"
+  sport: "Soccer"
+  leagues:
+    - "Bundesliga"
+  max_items: 6
+quotes:
+  provider: "quotable"
+  on_this_day_provider: "wikipedia"
+  max_on_this_day_items: 3
 photos:
   folder: "photos"
   extensions:
